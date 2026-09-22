@@ -1,0 +1,6 @@
+{
+  "versionCode": 1,
+  "versionName": "0.1",
+  "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
+  "notes": "初版：チャット・サイドキー呼び出し・Web検索・アラーム/タイマー"
+}

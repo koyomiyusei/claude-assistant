@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">アシスタント</string>
+    <string name="assist_label">Claudeアシスタント</string>
+    <string name="share_label">アシスタントに渡す</string>
+</resources>

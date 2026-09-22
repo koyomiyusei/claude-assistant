@@ -1,0 +1,13 @@
+# 署名鍵は絶対に公開しない
+*.keystore
+*.jks
+
+# ビルド生成物
+build/
+build.log
+*.idsig
+署名鍵*.txt
+*.tgz
+
+# 個人のメモ・設計書は公開しない
+2026-*.md
