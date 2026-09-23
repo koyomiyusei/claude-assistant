@@ -83,8 +83,12 @@ public class MainActivity extends Activity implements Tools.Host {
                     .setMessage("Claude の APIキーを設定してください。キーは端末の中だけに暗号化して保存されます。")
                     .setPositiveButton("設定を開く", (d, w) -> startActivity(new Intent(this, SettingsActivity.class)))
                     .show();
-        } else if (!Speech.hasMicPermission(this)) {
-            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+        } else {
+            java.util.ArrayList<String> need = new java.util.ArrayList<>();
+            if (!Speech.hasMicPermission(this)) need.add(Manifest.permission.RECORD_AUDIO);
+            if (!Cal.canRead(this)) need.add(Manifest.permission.READ_CALENDAR);
+            if (!Cal.canWrite(this)) need.add(Manifest.permission.WRITE_CALENDAR);
+            if (!need.isEmpty()) requestPermissions(need.toArray(new String[0]), 1);
         }
         handleIntent(getIntent());
     }
@@ -125,6 +129,10 @@ public class MainActivity extends Activity implements Tools.Host {
 
     public void launch(Intent i) {
         startActivity(i);
+    }
+
+    public void confirm(String message, java.util.function.Consumer<Boolean> answer) {
+        chat.askConfirm(message, answer);
     }
 
     @Override

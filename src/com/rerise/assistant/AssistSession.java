@@ -131,6 +131,14 @@ public class AssistSession extends VoiceInteractionSession implements Tools.Host
         getContext().startActivity(i);
     }
 
+    public void confirm(String message, java.util.function.Consumer<Boolean> answer) {
+        if (chat == null) {
+            answer.accept(false);
+            return;
+        }
+        chat.askConfirm(message, answer);
+    }
+
     private void launchSelf(Intent i) {
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {

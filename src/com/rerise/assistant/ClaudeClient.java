@@ -63,6 +63,10 @@ public class ClaudeClient {
     }
 
     public Result send(String apiKey, JSONObject body, Listener l) throws Exception {
+        return send(apiKey, null, body, l);
+    }
+
+    public Result send(String apiKey, String workspaceId, JSONObject body, Listener l) throws Exception {
         body.put("stream", true);
         byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
 
@@ -77,6 +81,9 @@ public class ClaudeClient {
             c.setRequestProperty("accept", "text/event-stream");
             c.setRequestProperty("x-api-key", apiKey);
             c.setRequestProperty("anthropic-version", "2023-06-01");
+            if (workspaceId != null && !workspaceId.trim().isEmpty()) {
+                c.setRequestProperty("anthropic-workspace-id", workspaceId.trim());
+            }
             c.setFixedLengthStreamingMode(payload.length);
             OutputStream os = c.getOutputStream();
             os.write(payload);

@@ -101,6 +101,14 @@ public class SettingsActivity extends Activity {
         });
         test.setOnClickListener(v -> testConnection());
 
+        note("ワークスペースID（任意）。キーを「組織」スコープで作った場合だけ必要。"
+                + "ワークスペーススコープのキーなら空のままでよい");
+        final EditText ws = field("wrkspc_… （空でOK）", false);
+        ws.setText(Prefs.workspaceId(this));
+        ws.setOnFocusChangeListener((v, f) -> {
+            if (!f) Prefs.setWorkspaceId(this, ws.getText().toString());
+        });
+
         // ---- アシスタント ----
         section("デジタルアシスタントとして使う");
         assistState = note("");
@@ -116,9 +124,16 @@ public class SettingsActivity extends Activity {
         openDefault.setOnClickListener(v -> openDefaultAppsSettings());
         openSide.setOnClickListener(v -> openSideKeySettings());
         micState = note("");
+        LinearLayout pr = row();
         Button mic = ui.pill(this, "マイクを許可", false);
-        box.addView(mic);
+        Button calp = ui.pill(this, "カレンダーを許可", false);
+        pr.addView(mic);
+        addGap(pr);
+        pr.addView(calp);
+        box.addView(pr);
         mic.setOnClickListener(v -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1));
+        calp.setOnClickListener(v -> requestPermissions(new String[]{
+                Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR}, 1));
 
         final Switch autoVoice = toggle("呼び出したらすぐ音声入力を始める", Prefs.autoVoice(this));
         autoVoice.setOnCheckedChangeListener((v, on) -> Prefs.setAutoVoice(this, on));
@@ -208,7 +223,14 @@ public class SettingsActivity extends Activity {
         } catch (Exception ignored) {
         }
         assistState.setText(held ? "✅ デフォルトのアシスタントに設定されています" : "⚪ まだデフォルトのアシスタントではありません");
-        micState.setText(Speech.hasMicPermission(this) ? "✅ マイク許可済み" : "⚪ マイク未許可（音声入力に必要）");
+        String m = Speech.hasMicPermission(this) ? "✅ マイク許可済み" : "⚪ マイク未許可（音声入力に必要）";
+        m += Cal.canWrite(this) ? "　／　✅ カレンダー許可済み"
+                : (Cal.canRead(this) ? "　／　△ カレンダーは読み取りのみ" : "　／　⚪ カレンダー未許可（予定の確認・登録に必要）");
+        if (Cal.canRead(this)) {
+            String names = Cal.calendarNames(this);
+            if (!names.isEmpty()) m += "\n見えているカレンダー：" + names;
+        }
+        micState.setText(m);
     }
 
     private void testConnection() {

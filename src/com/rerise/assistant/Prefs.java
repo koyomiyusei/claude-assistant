@@ -115,6 +115,15 @@ public class Prefs {
 
     // ---------------- その他の設定 ----------------
 
+    /** 組織スコープのキーを使うときに必要なワークスペースID（ワークスペーススコープのキーなら空でよい） */
+    public static String workspaceId(Context c) {
+        return sp(c).getString("workspace_id", "");
+    }
+
+    public static void setWorkspaceId(Context c, String v) {
+        sp(c).edit().putString("workspace_id", v == null ? "" : v.trim()).apply();
+    }
+
     public static String model(Context c) {
         return sp(c).getString("model", MODELS[0][0]);
     }

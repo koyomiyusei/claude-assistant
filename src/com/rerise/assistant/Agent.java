@@ -107,7 +107,7 @@ public class Agent {
             JSONObject body = buildRequest(ctx, conv);
             status("考えています…");
 
-            ClaudeClient.Result r = client.send(key, body, new ClaudeClient.Listener() {
+            ClaudeClient.Result r = client.send(key, Prefs.workspaceId(ctx), body, new ClaudeClient.Listener() {
                 public void onText(String delta) {
                     shown.append(delta);
                     final String t = shown.toString();
@@ -167,16 +167,8 @@ public class Agent {
                 final String name = b.optString("name");
                 final JSONObject input = b.optJSONObject("input") == null ? new JSONObject() : b.getJSONObject("input");
                 status(Tools.statusLabel(name));
-                final Tools.Outcome[] out = new Tools.Outcome[1];
-                final CountDownLatch latch = new CountDownLatch(1);
-                post(new Runnable() {
-                    public void run() {
-                        out[0] = Tools.run(host, name, input);
-                        latch.countDown();
-                    }
-                });
-                latch.await();
-                final Tools.Outcome o = out[0];
+                // ツールはこのワーカースレッドで実行する（確認ダイアログの答えをここで待てるように）
+                final Tools.Outcome o = Tools.run(host, name, input);
                 if (o.card != null) {
                     conv.addDisplay("card", o.card);
                     post(new Runnable() {
@@ -204,7 +196,7 @@ public class Agent {
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
-                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine())
+                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + calendarLine(ctx))
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
 
         JSONArray tools = Tools.definitions(ctx);
@@ -228,6 +220,15 @@ public class Agent {
     private static String nowLine() {
         SimpleDateFormat f = new SimpleDateFormat("yyyy年M月d日(E) H:mm", Locale.JAPAN);
         return "# 現在\n" + f.format(new Date()) + "（日本時間）";
+    }
+
+    private static String calendarLine(Context ctx) {
+        if (!Cal.canRead(ctx)) return "";
+        String names = Cal.calendarNames(ctx);
+        if (names.isEmpty()) return "";
+        return "\n\n# 使えるカレンダー\n" + names
+                + "\n予定は「仕事」「プライベート」、〆切と用事のタスクは「やること」、お金は「支払」（読むだけ）。"
+                + "\n完了の印はタイトル先頭の「済」。";
     }
 
     private static String lastRole(Conversation conv) {

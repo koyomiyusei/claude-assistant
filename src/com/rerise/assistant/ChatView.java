@@ -245,6 +245,53 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         status.setVisibility(VISIBLE);
     }
 
+    // ---------------- 確認（取り消せない操作の前） ----------------
+
+    public void askConfirm(String message, java.util.function.Consumer<Boolean> answer) {
+        final LinearLayout wrap = new LinearLayout(ctx);
+        wrap.setOrientation(VERTICAL);
+        wrap.setBackground(ui.roundStroke(ui.surface, ui.accent, 14));
+        wrap.setPadding(ui.dp(14), ui.dp(12), ui.dp(14), ui.dp(12));
+
+        TextView t = ui.label(ctx, message, 15, ui.text);
+        wrap.addView(t);
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(HORIZONTAL);
+        row.setPadding(0, ui.dp(10), 0, 0);
+        android.widget.Button yes = ui.pill(ctx, "実行する", true);
+        android.widget.Button no = ui.pill(ctx, "やめる", false);
+        row.addView(yes);
+        View gap = new View(ctx);
+        row.addView(gap, new LayoutParams(ui.dp(8), 1));
+        row.addView(no);
+        wrap.addView(row);
+
+        LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = ui.dp(6);
+        lp.bottomMargin = ui.dp(6);
+        list.addView(wrap, lp);
+        streaming = null;
+        scrollToEnd();
+
+        final boolean[] done = {false};
+        yes.setOnClickListener(v -> {
+            if (done[0]) return;
+            done[0] = true;
+            row.setVisibility(GONE);
+            t.setText(message + "\n→ 実行します");
+            answer.accept(true);
+        });
+        no.setOnClickListener(v -> {
+            if (done[0]) return;
+            done[0] = true;
+            row.setVisibility(GONE);
+            t.setText(message + "\n→ やめました");
+            answer.accept(false);
+        });
+    }
+
     // ---------------- 吹き出し ----------------
 
     private TextView addBubble(String kind, String text) {
