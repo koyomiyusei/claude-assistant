@@ -29,6 +29,7 @@ public class Cal {
     public static class Info {
         public long id;
         public String name;
+        public String account, accountType;
         public boolean writable;
     }
 
@@ -55,7 +56,9 @@ public class Cal {
         if (!canRead(c)) return out;
         String[] proj = {CalendarContract.Calendars._ID,
                 CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL};
+                CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
+                CalendarContract.Calendars.ACCOUNT_NAME,
+                CalendarContract.Calendars.ACCOUNT_TYPE};
         Cursor cur = c.getContentResolver().query(CalendarContract.Calendars.CONTENT_URI, proj,
                 CalendarContract.Calendars.SYNC_EVENTS + "=1", null, null);
         if (cur == null) return out;
@@ -64,6 +67,8 @@ public class Cal {
             i.id = cur.getLong(0);
             i.name = cur.getString(1);
             i.writable = cur.getInt(2) >= CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR;
+            i.account = cur.getString(3);
+            i.accountType = cur.getString(4);
             if (i.name != null) out.add(i);
         }
         cur.close();
@@ -156,13 +161,20 @@ public class Cal {
     /** 時間のある予定 */
     public static long insertTimed(Context c, long calId, String title, long begin, long end,
                                    String notes, int reminderMin) throws Exception {
+        return insertTimed(c, calId, title, begin, end, notes, reminderMin, false);
+    }
+
+    /** free=true（タスク）なら「予定なし」で入れる。鉄則：タスクで一日を埋めない */
+    public static long insertTimed(Context c, long calId, String title, long begin, long end,
+                                   String notes, int reminderMin, boolean free) throws Exception {
         ContentValues v = new ContentValues();
         v.put(CalendarContract.Events.CALENDAR_ID, calId);
         v.put(CalendarContract.Events.TITLE, title);
         v.put(CalendarContract.Events.DTSTART, begin);
         v.put(CalendarContract.Events.DTEND, end);
         v.put(CalendarContract.Events.EVENT_TIMEZONE, TZ.getID());
-        v.put(CalendarContract.Events.AVAILABILITY, CalendarContract.Events.AVAILABILITY_BUSY);
+        v.put(CalendarContract.Events.AVAILABILITY, free
+                ? CalendarContract.Events.AVAILABILITY_FREE : CalendarContract.Events.AVAILABILITY_BUSY);
         if (notes != null && !notes.isEmpty()) v.put(CalendarContract.Events.DESCRIPTION, notes);
         return finishInsert(c, v, reminderMin);
     }
@@ -235,6 +247,30 @@ public class Cal {
         int n = c.getContentResolver().delete(
                 ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), null, null);
         if (n == 0) throw new Exception("削除できませんでした");
+    }
+
+    /**
+     * 書き込んだ直後にGoogleへ同期を要求する。
+     * ふつうは数分待たされるが、これを呼ぶと数秒で上がり、右腕ボードにもすぐ出る。
+     */
+    public static void syncNow(Context c, Info cal) {
+        try {
+            java.util.List<Info> targets = new ArrayList<>();
+            if (cal != null && cal.account != null) targets.add(cal);
+            else targets.addAll(calendars(c));
+            java.util.HashSet<String> done = new java.util.HashSet<>();
+            for (Info i : targets) {
+                if (i.account == null || i.accountType == null) continue;
+                String key = i.accountType + "/" + i.account;
+                if (!done.add(key)) continue;
+                android.accounts.Account a = new android.accounts.Account(i.account, i.accountType);
+                android.os.Bundle b = new android.os.Bundle();
+                b.putBoolean(android.content.ContentResolver.SYNC_EXTRAS_MANUAL, true);
+                b.putBoolean(android.content.ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+                android.content.ContentResolver.requestSync(a, CalendarContract.AUTHORITY, b);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     // ---------------- 日時の小道具 ----------------

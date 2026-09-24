@@ -135,6 +135,18 @@ public class SettingsActivity extends Activity {
         calp.setOnClickListener(v -> requestPermissions(new String[]{
                 Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR}, 1));
 
+        LinearLayout pr2 = row();
+        Button ctp = ui.pill(this, "連絡先・SMS", false);
+        Button locp = ui.pill(this, "位置情報", false);
+        pr2.addView(ctp);
+        addGap(pr2);
+        pr2.addView(locp);
+        box.addView(pr2);
+        ctp.setOnClickListener(v -> requestPermissions(new String[]{
+                Manifest.permission.READ_CONTACTS, Manifest.permission.SEND_SMS}, 1));
+        locp.setOnClickListener(v -> requestPermissions(new String[]{
+                Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, 1));
+
         final Switch autoVoice = toggle("呼び出したらすぐ音声入力を始める", Prefs.autoVoice(this));
         autoVoice.setOnCheckedChangeListener((v, on) -> Prefs.setAutoVoice(this, on));
 
@@ -186,6 +198,33 @@ public class SettingsActivity extends Activity {
         // ---- できること ----
         section("できること（いま使えるツール）");
         note(Tools.summary(this));
+
+        // ---- 最後のエラー ----
+        String crash = App.last(this);
+        if (crash != null) {
+            section("最後のエラー");
+            note("アプリが落ちたときの記録です。コピーしてClaudeに貼れば原因が分かります。");
+            final TextView ct = note(crash.length() > 3000 ? crash.substring(0, 3000) : crash);
+            ct.setTextIsSelectable(true);
+            LinearLayout cr = row();
+            Button copy = ui.pill(this, "コピー", true);
+            Button clr = ui.pill(this, "消す", false);
+            cr.addView(copy);
+            addGap(cr);
+            cr.addView(clr);
+            box.addView(cr);
+            final String full = crash;
+            copy.setOnClickListener(v -> {
+                android.content.ClipboardManager cm =
+                        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", full));
+                Toast.makeText(this, "コピーしました", Toast.LENGTH_SHORT).show();
+            });
+            clr.setOnClickListener(v -> {
+                App.clear(this);
+                ct.setText("（消しました）");
+            });
+        }
 
         // ---- その他 ----
         section("このアプリ");

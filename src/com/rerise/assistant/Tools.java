@@ -122,24 +122,41 @@ public class Tools {
                     )));
 
             a.put(tool("create_event",
-                    "カレンダーに予定またはタスクを登録する。ルール："
-                            + "kind=予定 は時間の決まった用事（会議・アポ・予約）で、カレンダーは 仕事 か プライベート。"
-                            + "kind=期限 は〆切のあるもの、kind=やる は期限のないやりたいこと。この2つは終日・予定なしで「やること」カレンダーに入れ、"
-                            + "タイトル先頭に【期限】【やる】が自動で付く（自分で付けなくてよい）。"
-                            + "調べ物の結果をタスクにしたいときは、要点を notes に入れる。"
-                            + "支払カレンダーには書き込めない。",
+                    "カレンダーに予定またはタスクを登録する。\n"
+                            + "【ルール】種別はカレンダーで決まる。マーカーはタイトルの末尾にだけ付く（先頭に付くのは完了の「済」だけ）。\n"
+                            + "kind=予定 … 時間の決まった用事（会議・面接・アポ・予約）。仕事 か プライベート のカレンダー。マーカーは付けない。\n"
+                            + "kind=タスク … 〆切のあるもの・やりたいこと。「やること」カレンダーに終日・予定なしで入る。area（仕事/私用）が末尾に自動で付く。\n"
+                            + "【タイトルの書き方】短い名詞句。15文字以内。一番大事な言葉を先頭に置く（ウィジェットは頭しか見えない）。"
+                            + "文章にしない。人が絡むものは「用件 名前」の順（例: 制服 出射さん）。\n"
+                            + "【説明(notes)の書き方】冒頭に「▶ 」で始まる箇条書きで、やる動作だけを1行1動作で並べる。"
+                            + "そのあと1行空けて、背景・条件・金額などの詳細を書く。調べ物の結果もここに入れる。",
                     props(
-                            prop("title", "string", "タイトル（接頭辞は付けない）"),
-                            prop("kind", "string", "予定 / 期限 / やる"),
+                            prop("title", "string", "短い名詞句。マーカーは付けない"),
+                            prop("kind", "string", "予定 / タスク"),
                             prop("date", "string", "日付 YYYY-MM-DD"),
-                            prop("start_time", "string", "開始時刻 HH:MM（kind=予定 のとき必須）"),
-                            prop("end_time", "string", "終了時刻 HH:MM（省略時は開始の1時間後）"),
+                            prop("start_time", "string", "開始時刻 HH:MM（kind=予定 のとき必須。時間の決まったタスクにも使える）"),
+                            prop("end_time", "string", "終了時刻 HH:MM（省略時は1時間後）"),
                             prop("calendar", "string", "仕事 / プライベート（kind=予定 のとき。省略時は仕事）"),
-                            prop("notes", "string", "説明欄に入れるメモ（任意）")
+                            prop("area", "string", "仕事 / 私用（kind=タスク のとき末尾に付くマーカー。省略時は仕事）"),
+                            new Object[]{"waiting", new JSONObject().put("type", "boolean")
+                                    .put("description", "他人の動きを待つタスクなら true。末尾に【待ち】が付く")},
+                            prop("notes", "string", "説明欄（▶の箇条書き＋空行＋詳細）")
                     ), "title", "kind", "date"));
 
+            a.put(tool("record_money",
+                    "家計簿として、実際に動いたお金を支払カレンダーに記録する。「ガソリン5000円」「昼飯800円」など。"
+                            + "タイトルは自動で「品目 金額円【支出】【費目】」の形になる。"
+                            + "これから出ていく予定（引落・支払・返済）の登録はしない（支払マスタと二重管理になるため）。",
+                    props(
+                            prop("item", "string", "品目（短く。例: ガソリン、昼食、コンビニ）"),
+                            prop("amount", "integer", "金額（円）"),
+                            prop("category", "string", "費目：食費/日用品/ガソリン/車両/通信/交際/医療/衣類/趣味/その他"),
+                            prop("kind", "string", "支出 / 入金（省略時は支出）"),
+                            prop("date", "string", "日付 YYYY-MM-DD（省略時は今日）")
+                    ), "item", "amount"));
+
             a.put(tool("complete_event",
-                    "タスクを完了にする。タイトルの先頭に「済」を付ける（カレンダーには完了状態が無いため、これが完了の印）。",
+                    "タスク・予定を完了にする。タイトルの先頭に「済 」を付ける（カレンダーには完了状態が無いため、これが唯一の完了の印）。削除はしない。",
                     props(prop("event_id", "integer", "list_events で得た event_id")), "event_id"));
 
             a.put(tool("update_event",
@@ -157,6 +174,60 @@ public class Tools {
                     props(prop("event_id", "integer", "list_events で得た event_id")), "event_id"));
         }
 
+        // ---- 連絡先・電話・SMS ----
+        if (Device.canReadContacts(c)) {
+            a.put(tool("find_contact",
+                    "連絡先から名前で電話番号を探す。電話やSMSの前に使う。",
+                    props(prop("name", "string", "名前の一部（例: 高木）")), "name"));
+        }
+        a.put(tool("call_phone",
+                "電話アプリを番号入力済みの状態で開く。発信ボタンは本人が押す。",
+                props(
+                        prop("number", "string", "電話番号（ハイフンなし）"),
+                        prop("name", "string", "誰にかけるか（表示用・任意）")
+                ), "number"));
+        a.put(tool("send_sms",
+                "SMSを送る。送信前に本人に確認が出る。相手の番号が分からないときは先に find_contact を使う。",
+                props(
+                        prop("number", "string", "送り先の電話番号"),
+                        prop("text", "string", "本文（短く。相手がそのまま読む文章）"),
+                        prop("name", "string", "相手の名前（表示用・任意）")
+                ), "number", "text"));
+
+        // ---- アプリ・端末 ----
+        a.put(tool("open_app",
+                "端末のアプリを開く。「LINE開いて」「カレンダー出して」など。",
+                props(prop("name", "string", "アプリの表示名（一部でよい）")), "name"));
+        a.put(tool("open_url",
+                "ブラウザでURLを開く。",
+                props(prop("url", "string", "http(s) のURL")), "url"));
+        a.put(tool("set_torch",
+                "端末のライト（懐中電灯）をつける・消す。",
+                props(new Object[]{"on", new JSONObject().put("type", "boolean").put("description", "true=点灯 / false=消灯")}), "on"));
+        a.put(tool("set_ringer",
+                "マナーモードの切り替え。通常／バイブ／サイレント。",
+                props(prop("mode", "string", "通常 / バイブ / マナー")), "mode"));
+        a.put(tool("set_volume",
+                "音量を変える。",
+                props(
+                        prop("which", "string", "メディア / 着信 / アラーム（省略時はメディア）"),
+                        prop("percent", "integer", "0〜100")
+                ), "percent"));
+
+        // ---- 位置・地図 ----
+        if (Device.canLocate(c)) {
+            a.put(tool("current_location",
+                    "今いる場所（緯度経度と住所）を調べる。周辺検索や所要時間の前提に使う。",
+                    props()));
+        }
+        a.put(tool("open_maps",
+                "地図アプリを開く。周辺検索（「近くのガソリンスタンド」）や、目的地までの経路案内に使う。",
+                props(
+                        prop("query", "string", "検索語または目的地（例: ガソリンスタンド、岡山駅）"),
+                        new Object[]{"navigate", new JSONObject().put("type", "boolean")
+                                .put("description", "true なら経路案内を開始する")}
+                ), "query"));
+
         return a;
     }
 
@@ -171,10 +242,16 @@ public class Tools {
             sb.append("・予定とタスクの確認 … カレンダー未許可\n");
         }
         if (Cal.canWrite(c)) {
-            sb.append("・予定とタスクの登録（【期限】【やる】は終日・予定なし）\n");
-            sb.append("・「済」を付けて完了／変更・削除（確認あり）\n");
-            sb.append("・支払カレンダーは読むだけ（書き込まない）\n");
+            sb.append("・予定の登録（時間つき・30分前に通知）\n");
+            sb.append("・タスクの登録（やること／終日・予定なし・末尾に【仕事】【私用】【待ち】）\n");
+            sb.append("・「済 」を付けて完了／変更・削除（確認あり）\n");
+            sb.append("・家計簿の記録（支払カレンダーへ【支出】【入金】）\n");
+            sb.append("・登録したらすぐ同期して右腕ボードに反映\n");
         }
+        sb.append(Device.canReadContacts(c) ? "・連絡先の検索／電話をかける\n" : "・連絡先 … 未許可\n");
+        sb.append("・SMSを送る（送信前に確認）\n");
+        sb.append("・アプリを開く／ライト／マナーモード／音量\n");
+        sb.append(Device.canLocate(c) ? "・今いる場所／周辺検索／経路案内\n" : "・地図・経路案内（現在地は未許可）\n");
         sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
         sb.append("・音声入力（呼び出したらすぐ聞く：").append(Prefs.autoVoice(c) ? "オン" : "オフ").append("）");
         return sb.toString();
@@ -192,12 +269,33 @@ public class Tools {
                 return "カレンダーを見ています…";
             case "create_event":
                 return "カレンダーに登録しています…";
+            case "record_money":
+                return "家計簿に記録しています…";
             case "complete_event":
                 return "完了にしています…";
             case "update_event":
                 return "予定を変更しています…";
             case "delete_event":
                 return "予定を削除しています…";
+            case "find_contact":
+                return "連絡先を探しています…";
+            case "call_phone":
+                return "電話アプリを開いています…";
+            case "send_sms":
+                return "SMSを準備しています…";
+            case "open_app":
+                return "アプリを開いています…";
+            case "open_url":
+                return "開いています…";
+            case "set_torch":
+                return "ライトを操作しています…";
+            case "set_ringer":
+            case "set_volume":
+                return "音の設定を変えています…";
+            case "current_location":
+                return "今いる場所を調べています…";
+            case "open_maps":
+                return "地図を開いています…";
             default:
                 return "端末を操作しています…";
         }
@@ -218,19 +316,42 @@ public class Tools {
                     return listEvents(h, in);
                 case "create_event":
                     return createEvent(h, in);
+                case "record_money":
+                    return recordMoney(h, in);
                 case "complete_event":
                     return completeEvent(h, in);
                 case "update_event":
                     return updateEvent(h, in);
                 case "delete_event":
                     return deleteEvent(h, in);
+                case "find_contact":
+                    return findContact(h, in);
+                case "call_phone":
+                    return callPhone(h, in);
+                case "send_sms":
+                    return sendSms(h, in);
+                case "open_app":
+                    return openApp(h, in);
+                case "open_url":
+                    return openUrl(h, in);
+                case "set_torch":
+                    return setTorch(h, in);
+                case "set_ringer":
+                    return setRinger(h, in);
+                case "set_volume":
+                    return setVolume(h, in);
+                case "current_location":
+                    return currentLocation(h, in);
+                case "open_maps":
+                    return openMaps(h, in);
                 default:
                     return Outcome.err("未対応のツールです: " + name);
             }
         } catch (android.content.ActivityNotFoundException e) {
             return Outcome.err("対応するアプリが見つかりませんでした（" + name + "）");
-        } catch (Exception e) {
-            return Outcome.err(name + " に失敗しました: " + e.getMessage());
+        } catch (Throwable e) {
+            App.save(h.context(), "tool:" + name, e);
+            return Outcome.err(name + " に失敗しました: " + e.getClass().getSimpleName() + " " + e.getMessage());
         }
     }
 
@@ -334,40 +455,66 @@ public class Tools {
         Context c = h.context();
         if (!Cal.canWrite(c)) return Outcome.err("カレンダーへの書き込み許可がありません。アプリを開いて許可してください。");
         String title = in.getString("title").trim();
-        String kind = in.optString("kind", "やる").trim();
+        String kind = in.optString("kind", "タスク").trim();
         String date = in.optString("date", Cal.today());
         String notes = in.optString("notes", "");
-        boolean task = kind.contains("期限") || kind.contains("やる");
+        String st = in.optString("start_time", "");
+        boolean task = !kind.contains("予定");
 
-        String calName = in.optString("calendar", "");
-        if (task) calName = "やること";
-        else if (calName.isEmpty()) calName = "仕事";
-        if (Cal.isPayment(calName)) return Outcome.err("支払カレンダーへの書き込みはしない決まりです。");
-
+        String calName = task ? "やること" : in.optString("calendar", "仕事");
+        if (Cal.isPayment(calName)) return Outcome.err("支払カレンダーに予定は入れない決まりです（家計簿の記録は record_money）。");
         Cal.Info cal = Cal.findCalendar(c, calName);
         if (cal == null) return Outcome.err("「" + calName + "」というカレンダーが見つかりません。使えるのは: " + Cal.calendarNames(c));
         if (!cal.writable) return Outcome.err("「" + cal.name + "」は書き込みできません。");
 
+        // マーカーは末尾に付ける（先頭に付くのは完了の「済」だけ）
+        String full = title;
         if (task) {
-            String prefix = kind.contains("期限") ? "【期限】" : "【やる】";
-            String full = title.startsWith("【") ? title : prefix + title;
-            // 期限は前日18時に通知、やるは通知なし
-            int reminder = kind.contains("期限") ? 6 * 60 : -1;
-            long id = Cal.insertAllDay(c, cal.id, full, date, notes, reminder);
-            String when = Cal.allDayDate(Cal.dateToUtcMidnight(date));
-            return Outcome.ok("登録しました（event_id=" + id + "、" + cal.name + "／終日・予定なし）",
-                    "📅 " + when + " " + full);
+            String area = in.optString("area", "仕事").contains("私用") ? "【私用】" : "【仕事】";
+            if (!full.contains("【仕事】") && !full.contains("【私用】")) full = full + area;
+            if (in.optBoolean("waiting", false) && !full.contains("【待ち】")) full = full + "【待ち】";
         }
 
-        String st = in.optString("start_time", "");
-        if (st.isEmpty()) return Outcome.err("時間の決まった予定には start_time（HH:MM）が要ります。時間が分からないなら kind=やる で登録してください。");
-        long begin = Cal.timeOnDay(date, st);
-        String et = in.optString("end_time", "");
-        long end = et.isEmpty() ? begin + 3600000L : Cal.timeOnDay(date, et);
-        if (end <= begin) end = begin + 3600000L;
-        long id = Cal.insertTimed(c, cal.id, title, begin, end, notes, 30);
-        return Outcome.ok("登録しました（event_id=" + id + "、" + cal.name + "）",
-                "📅 " + Cal.fmt("M/d(E) H:mm", begin) + " " + title);
+        long id;
+        String when;
+        if (task && st.isEmpty()) {
+            id = Cal.insertAllDay(c, cal.id, full, date, notes, 6 * 60);   // 前日18時に通知
+            when = Cal.allDayDate(Cal.dateToUtcMidnight(date));
+        } else {
+            if (st.isEmpty()) return Outcome.err("時間の決まった予定には start_time（HH:MM）が要ります。時間が決まっていないなら kind=タスク で登録してください。");
+            long begin = Cal.timeOnDay(date, st);
+            String et = in.optString("end_time", "");
+            long end = et.isEmpty() ? begin + 3600000L : Cal.timeOnDay(date, et);
+            if (end <= begin) end = begin + 3600000L;
+            id = Cal.insertTimed(c, cal.id, full, begin, end, notes, 30, task);
+            when = Cal.fmt("M/d(E) H:mm", begin);
+        }
+        Cal.syncNow(c, cal);
+        return Outcome.ok("登録しました（event_id=" + id + "、" + cal.name + (task ? "／終日・予定なし" : "") + "）。"
+                + "右腕ボードには最大1分で出ます。", "📅 " + when + " " + full);
+    }
+
+    private static Outcome recordMoney(Host h, JSONObject in) throws Exception {
+        Context c = h.context();
+        if (!Cal.canWrite(c)) return Outcome.err("カレンダーへの書き込み許可がありません。");
+        String item = in.getString("item").trim();
+        long amount = in.getLong("amount");
+        String kind = in.optString("kind", "支出").contains("入金") ? "【入金】" : "【支出】";
+        String cat = in.optString("category", "").trim();
+        String[] cats = {"食費", "日用品", "ガソリン", "車両", "通信", "交際", "医療", "衣類", "趣味", "その他"};
+        boolean known = false;
+        for (String k : cats) if (k.equals(cat)) known = true;
+        if (!known) cat = "その他";
+        String date = in.optString("date", Cal.today());
+
+        Cal.Info cal = Cal.findCalendar(c, "支払");
+        if (cal == null) return Outcome.err("支払カレンダーが見つかりません。");
+        if (!cal.writable) return Outcome.err("支払カレンダーに書き込めません。");
+        String title = item + " " + String.format(java.util.Locale.JAPAN, "%,d", amount) + "円" + kind
+                + ("【入金】".equals(kind) ? "" : "【" + cat + "】");
+        long id = Cal.insertAllDay(c, cal.id, title, date, in.optString("notes", ""), -1);
+        Cal.syncNow(c, cal);
+        return Outcome.ok("家計簿に記録しました（event_id=" + id + "）", "💰 " + title);
     }
 
     private static Outcome completeEvent(Host h, JSONObject in) throws Exception {
@@ -378,8 +525,9 @@ public class Tools {
         if (e == null) return Outcome.err("その予定が見つかりません（event_id=" + id + "）");
         if (Cal.isPayment(e.calendar)) return Outcome.err("支払カレンダーは書き換えない決まりです。");
         if (e.title.startsWith("済")) return Outcome.ok("すでに完了になっています：" + e.title, null);
-        Cal.setTitle(c, id, "済" + e.title);
-        return Outcome.ok("完了にしました：済" + e.title, "✅ 済" + e.title);
+        Cal.setTitle(c, id, "済 " + e.title);
+        Cal.syncNow(c, null);
+        return Outcome.ok("完了にしました：済 " + e.title, "✅ 済 " + e.title);
     }
 
     private static Outcome updateEvent(Host h, JSONObject in) throws Exception {
@@ -417,6 +565,7 @@ public class Tools {
                 Cal.setTime(c, id, begin, begin + (e.end - e.begin));
             }
         }
+        Cal.syncNow(c, null);
         return Outcome.ok("変更しました。", "✏ 変更: " + (newTitle.isEmpty() ? e.title : newTitle));
     }
 
@@ -430,7 +579,116 @@ public class Tools {
         if (!ask(h, "「" + e.title + "」を削除します。元に戻せません。いいですか？"))
             return Outcome.ok("本人がキャンセルしました。削除していません。", "✋ 削除をやめました");
         Cal.delete(c, id);
+        Cal.syncNow(c, null);
         return Outcome.ok("削除しました：" + e.title, "🗑 削除: " + e.title);
+    }
+
+    // ---------------- 連絡先・電話・SMS ----------------
+
+    private static Outcome findContact(Host h, JSONObject in) throws Exception {
+        List<Device.Contact> list = Device.findContacts(h.context(), in.getString("name"), 5);
+        if (list.isEmpty()) return Outcome.ok("その名前の連絡先は見つかりませんでした。", null);
+        StringBuilder sb = new StringBuilder();
+        for (Device.Contact ct : list) sb.append("- ").append(ct.name).append(" ").append(ct.number).append("\n");
+        return Outcome.ok(sb.toString(), null);
+    }
+
+    private static Outcome callPhone(Host h, JSONObject in) throws Exception {
+        String num = in.getString("number").replace("-", "").replace(" ", "");
+        String name = in.optString("name", "");
+        h.launch(new Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + num))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return Outcome.ok("電話アプリを開きました（発信ボタンは本人が押します）。",
+                "📞 " + (name.isEmpty() ? num : name + " " + num));
+    }
+
+    private static Outcome sendSms(Host h, JSONObject in) throws Exception {
+        Context c = h.context();
+        String num = in.getString("number").replace("-", "").replace(" ", "");
+        String text = in.getString("text");
+        String name = in.optString("name", "");
+        String who = name.isEmpty() ? num : name + "（" + num + "）";
+        if (!ask(h, who + " にSMSを送ります。\n\n" + text + "\n\n送っていいですか？"))
+            return Outcome.ok("本人がキャンセルしました。送っていません。", "✋ 送信をやめました");
+
+        boolean canSend = c.checkSelfPermission(android.Manifest.permission.SEND_SMS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (canSend) {
+            android.telephony.SmsManager sm = c.getSystemService(android.telephony.SmsManager.class);
+            java.util.ArrayList<String> parts = sm.divideMessage(text);
+            sm.sendMultipartTextMessage(num, null, parts, null, null);
+            return Outcome.ok("送信しました。", "✉ SMS送信: " + who);
+        }
+        // 権限が無いときは、SMSアプリに本文を入れた状態で開く
+        Intent i = new Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + num))
+                .putExtra("sms_body", text).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        h.launch(i);
+        return Outcome.ok("SMSアプリを本文入りで開きました（送信ボタンは本人が押します）。", "✉ SMS下書き: " + who);
+    }
+
+    // ---------------- アプリ・端末 ----------------
+
+    private static Outcome openApp(Host h, JSONObject in) throws Exception {
+        Device.AppInfo app = Device.findApp(h.context(), in.getString("name"));
+        if (app == null) return Outcome.err("「" + in.getString("name") + "」というアプリが見つかりません。");
+        Intent i = Device.launchIntent(h.context(), app.pkg);
+        if (i == null) return Outcome.err(app.label + " を開けませんでした。");
+        h.launch(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return Outcome.ok(app.label + " を開きました。", "▶ " + app.label);
+    }
+
+    private static Outcome openUrl(Host h, JSONObject in) throws Exception {
+        String url = in.getString("url");
+        if (!url.startsWith("http")) return Outcome.err("http(s) で始まるURLだけ開けます。");
+        h.launch(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return Outcome.ok("開きました。", "🔗 " + url);
+    }
+
+    private static Outcome setTorch(Host h, JSONObject in) throws Exception {
+        boolean on = in.getBoolean("on");
+        Device.torch(h.context(), on);
+        return Outcome.ok(on ? "ライトをつけました。" : "ライトを消しました。", on ? "🔦 点灯" : "🔦 消灯");
+    }
+
+    private static Outcome setRinger(Host h, JSONObject in) throws Exception {
+        try {
+            String label = Device.ringer(h.context(), in.getString("mode"));
+            return Outcome.ok(label + "にしました。", "🔕 " + label);
+        } catch (SecurityException e) {
+            return Outcome.err("サイレントにするには「通知へのアクセス（サイレントモードの制御）」の許可が要ります。"
+                    + "設定 → アプリ → アシスタント → 通知の制御 から許可してください。");
+        }
+    }
+
+    private static Outcome setVolume(Host h, JSONObject in) throws Exception {
+        String which = in.optString("which", "メディア");
+        int got = Device.volume(h.context(), which, in.getInt("percent"));
+        return Outcome.ok(which + "の音量を" + got + "%にしました。", "🔊 " + which + " " + got + "%");
+    }
+
+    // ---------------- 位置・地図 ----------------
+
+    private static Outcome currentLocation(Host h, JSONObject in) throws Exception {
+        Context c = h.context();
+        if (!Device.canLocate(c)) return Outcome.err("位置情報の許可がありません。アプリを開いて許可してください。");
+        android.location.Location l = Device.lastLocation(c);
+        if (l == null) return Outcome.err("今いる場所が取れませんでした（位置情報がオフか、まだ測位していません）。");
+        String addr = Device.describe(c, l);
+        String age = "（" + Math.max(0, (System.currentTimeMillis() - l.getTime()) / 60000) + "分前の位置）";
+        return Outcome.ok("緯度 " + String.format(java.util.Locale.US, "%.5f", l.getLatitude())
+                + " / 経度 " + String.format(java.util.Locale.US, "%.5f", l.getLongitude())
+                + (addr.isEmpty() ? "" : "\n住所: " + addr) + "\n" + age, null);
+    }
+
+    private static Outcome openMaps(Host h, JSONObject in) throws Exception {
+        String q = in.getString("query");
+        boolean nav = in.optBoolean("navigate", false);
+        android.net.Uri uri = nav
+                ? android.net.Uri.parse("google.navigation:q=" + android.net.Uri.encode(q))
+                : android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(q));
+        h.launch(new Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return Outcome.ok((nav ? "経路案内を開きました：" : "地図を開きました：") + q, "🗺 " + q);
     }
 
     // ---------------- JSON Schema 組み立ての小道具 ----------------

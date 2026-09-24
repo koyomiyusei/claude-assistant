@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "0.3",
+  "versionCode": 4,
+  "versionName": "0.4",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "ワンタップ更新（⬇ボタン、押すだけでダウンロードまで進む・新しい版があるとオレンジで知らせる）／設定に「できること」一覧"
+  "notes": "右腕ボードのルールに合わせたカレンダー運用（マーカーは末尾・完了は「済 」・支払は読むだけ＋家計簿の記録）／登録後すぐ同期／予定の答え方を見やすく整理／連絡先・電話・SMS・アプリ起動・ライト・マナー・音量・位置情報・地図／落ちたときのエラー記録"
 }

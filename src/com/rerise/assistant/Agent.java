@@ -68,10 +68,12 @@ public class Agent {
             public void run() {
                 try {
                     loop(ctx, conv);
-                } catch (final Exception e) {
+                } catch (final Throwable e) {
+                    App.save(ctx, "agent", e);
                     if (client == null || !client.isCancelled()) {
                         final String m = e instanceof ClaudeClient.ApiException ? e.getMessage()
-                                : "通信できませんでした: " + e.getClass().getSimpleName() + " " + e.getMessage();
+                                : "エラー: " + e.getClass().getSimpleName() + " " + e.getMessage()
+                                + "\n（詳しい内容は 設定 → 最後のエラー で見られます）";
                         conv.addDisplay("error", m);
                         post(new Runnable() {
                             public void run() {
@@ -222,13 +224,33 @@ public class Agent {
         return "# 現在\n" + f.format(new Date()) + "（日本時間）";
     }
 
+    /**
+     * 右腕ボードと共通のカレンダー運用ルールと、予定を聞かれたときの答え方。
+     * 設定のシステムプロンプトとは別に、毎回ここで足す（本人が設定を書き換えてもルールは崩れない）。
+     */
     private static String calendarLine(Context ctx) {
         if (!Cal.canRead(ctx)) return "";
         String names = Cal.calendarNames(ctx);
         if (names.isEmpty()) return "";
-        return "\n\n# 使えるカレンダー\n" + names
-                + "\n予定は「仕事」「プライベート」、〆切と用事のタスクは「やること」、お金は「支払」（読むだけ）。"
-                + "\n完了の印はタイトル先頭の「済」。";
+        return "\n\n# カレンダーの使い分け（右腕ボードと共通のルール）\n"
+                + "端末にあるカレンダー: " + names + "\n"
+                + "- 仕事／プライベート … 時間の決まった予定。マーカーは付けない。勝手に消さない\n"
+                + "- やること … タスク。終日・予定なし(FREE)。末尾に【仕事】か【私用】、他人待ちは【待ち】、長期目標は【目標】\n"
+                + "- 支払 … お金。【引落】【支払】【返済】【期限】は支払い予定で、読むだけ（変更も削除もしない）。"
+                + "実際に使ったお金の記録だけ record_money で足せる（【支出】【入金】）\n"
+                + "- 完了はタイトルの先頭に「済 」を付ける。削除ではない（記録が消えると後から追えないため）。"
+                + "右腕ボードと朝のブリーフは「済」を自動で隠すので、見た目は消えたのと同じになる\n"
+                + "- 先頭に付くマーカーは「済」だけ。それ以外のマーカーはタイトルの末尾\n"
+                + "- タイトルは短い名詞句で15文字以内。人が絡むものは「用件 名前」の順\n"
+                + "- 説明は「▶ 」で始まる動作の箇条書き → 1行空ける → 背景・詳細\n"
+                + "\n# 予定を聞かれたときの答え方\n"
+                + "スマホの画面で一目で分かる形にする。前置き・感想・締めの一文は書かない。\n"
+                + "種類ごとに見出しを分け、1件1行。中身が無い見出しは丸ごと省く。\n"
+                + "**予定**（時間のあるものだけ）→ 「H:mm タイトル」\n"
+                + "**支払**（今日のお金）→ 「タイトル 金額」。期限切れ・今日が期限のものは行末に ← 今日 と書く\n"
+                + "**やること**（N件）→ 重要・古い順に最大5件まで。残りは最後に「ほか◯件」とだけ書く\n"
+                + "タスクの【仕事】【私用】などのマーカーは読み上げない（見出しで分かるため）。\n"
+                + "全部を並べようとしない。聞かれたら追加で出す。";
     }
 
     private static String lastRole(Conversation conv) {
