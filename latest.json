@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "0.5",
+  "versionCode": 6,
+  "versionName": "0.6",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "調べ物を勝手にタスク化しないように変更／予定を読む前にカレンダーを同期（右腕ボードやPCでの変更をすぐ拾う）"
+  "notes": "運用ルールをGitHubのrules.mdから読み込む方式に（ボードの決まりが変わってもアプリ更新なしで追従）／あとでカレンダー・【メモ】【目標】に対応／カレンダー間の移動"
 }

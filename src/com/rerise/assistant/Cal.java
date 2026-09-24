@@ -316,6 +316,12 @@ public class Cal {
         return f.format(new Date(millis));
     }
 
+    public static String fmtUtc(String pattern, long millis) {
+        SimpleDateFormat f = new SimpleDateFormat(pattern, Locale.JAPAN);
+        f.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return f.format(new Date(millis));
+    }
+
     /** 終日予定は UTC で入っているので、表示用の日付は UTC で読む */
     public static String allDayDate(long millis) {
         SimpleDateFormat f = new SimpleDateFormat("M/d(E)", Locale.JAPAN);

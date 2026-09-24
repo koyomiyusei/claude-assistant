@@ -122,26 +122,35 @@ public class Tools {
                     )));
 
             a.put(tool("create_event",
-                    "カレンダーに予定またはタスクを登録する。\n"
-                            + "【ルール】種別はカレンダーで決まる。マーカーはタイトルの末尾にだけ付く（先頭に付くのは完了の「済」だけ）。\n"
-                            + "kind=予定 … 時間の決まった用事（会議・面接・アポ・予約）。仕事 か プライベート のカレンダー。マーカーは付けない。\n"
-                            + "kind=タスク … 〆切のあるもの・やりたいこと。「やること」カレンダーに終日・予定なしで入る。area（仕事/私用）が末尾に自動で付く。\n"
-                            + "【タイトルの書き方】短い名詞句。15文字以内。一番大事な言葉を先頭に置く（ウィジェットは頭しか見えない）。"
-                            + "文章にしない。人が絡むものは「用件 名前」の順（例: 制服 出射さん）。\n"
-                            + "【説明(notes)の書き方】冒頭に「▶ 」で始まる箇条書きで、やる動作だけを1行1動作で並べる。"
-                            + "そのあと1行空けて、背景・条件・金額などの詳細を書く。",
+                    "カレンダーに予定またはタスクを登録する。分け方と書き方は、会話の最初にある運用ルールに従うこと。\n"
+                            + "kind=予定 … 相手がいて動かせないもの（会議・面談・監査・通院・来客・待ち合わせ）。仕事 か プライベート のカレンダー。\n"
+                            + "kind=タスク … それ以外。時刻が付いていてもタスク。「やること」カレンダーに予定なし(FREE)で入る。",
                     props(
                             prop("title", "string", "短い名詞句。マーカーは付けない"),
                             prop("kind", "string", "予定 / タスク"),
                             prop("date", "string", "日付 YYYY-MM-DD"),
-                            prop("start_time", "string", "開始時刻 HH:MM（kind=予定 のとき必須。時間の決まったタスクにも使える）"),
+                            prop("start_time", "string", "開始時刻 HH:MM（kind=予定 は必須。時刻つきのタスクにも使える）"),
                             prop("end_time", "string", "終了時刻 HH:MM（省略時は1時間後）"),
                             prop("calendar", "string", "仕事 / プライベート（kind=予定 のとき。省略時は仕事）"),
-                            prop("area", "string", "仕事 / 私用（kind=タスク のとき末尾に付くマーカー。省略時は仕事）"),
+                            prop("area", "string", "仕事 / 私用（タスクの末尾に付くマーカー。省略時は仕事）"),
                             new Object[]{"waiting", new JSONObject().put("type", "boolean")
-                                    .put("description", "他人の動きを待つタスクなら true。末尾に【待ち】が付く")},
+                                    .put("description", "相手の返事待ちなら true →【待ち】")},
+                            new Object[]{"later", new JSONObject().put("type", "boolean")
+                                    .put("description", "「あとで」「いつか」「急がない」なら true → あとでカレンダーへ")},
+                            new Object[]{"memo", new JSONObject().put("type", "boolean")
+                                    .put("description", "用事ではない書き留めなら true →【メモ】")},
+                            new Object[]{"goal", new JSONObject().put("type", "boolean")
+                                    .put("description", "期限付きの長期目標なら true →【目標】")},
                             prop("notes", "string", "説明欄（▶の箇条書き＋空行＋詳細）")
                     ), "title", "kind", "date"));
+
+            a.put(tool("move_event",
+                    "予定・タスクを別のカレンダーへ移す。「これあとでに回して」「私用に移して」など。"
+                            + "中身はそのままで、移す先に作り直して元を消す（右腕ボードと同じやり方）。",
+                    props(
+                            prop("event_id", "integer", "list_events で得た event_id"),
+                            prop("to", "string", "やること / あとで / 仕事 / プライベート")
+                    ), "event_id", "to"));
 
             a.put(tool("record_money",
                     "家計簿として、実際に動いたお金を支払カレンダーに記録する。「ガソリン5000円」「昼飯800円」など。"
@@ -243,7 +252,8 @@ public class Tools {
         }
         if (Cal.canWrite(c)) {
             sb.append("・予定の登録（時間つき・30分前に通知）\n");
-            sb.append("・タスクの登録（やること／終日・予定なし・末尾に【仕事】【私用】【待ち】）\n");
+            sb.append("・タスクの登録（やること／あとで／予定なし・末尾に【仕事】【私用】【待ち】【メモ】【目標】）\n");
+            sb.append("・カレンダー間の移動（あとで ⇄ やること など）\n");
             sb.append("・「済 」を付けて完了／変更・削除（確認あり）\n");
             sb.append("・家計簿の記録（支払カレンダーへ【支出】【入金】）\n");
             sb.append("・登録したらすぐ同期して右腕ボードに反映\n");
@@ -271,6 +281,8 @@ public class Tools {
                 return "カレンダーに登録しています…";
             case "record_money":
                 return "家計簿に記録しています…";
+            case "move_event":
+                return "移しています…";
             case "complete_event":
                 return "完了にしています…";
             case "update_event":
@@ -318,6 +330,8 @@ public class Tools {
                     return createEvent(h, in);
                 case "record_money":
                     return recordMoney(h, in);
+                case "move_event":
+                    return moveEvent(h, in);
                 case "complete_event":
                     return completeEvent(h, in);
                 case "update_event":
@@ -467,28 +481,33 @@ public class Tools {
         String notes = in.optString("notes", "");
         String st = in.optString("start_time", "");
         boolean task = !kind.contains("予定");
+        boolean later = in.optBoolean("later", false);
 
-        String calName = task ? "やること" : in.optString("calendar", "仕事");
+        String calName = task ? (later ? "あとで" : "やること") : in.optString("calendar", "仕事");
         if (Cal.isPayment(calName)) return Outcome.err("支払カレンダーに予定は入れない決まりです（家計簿の記録は record_money）。");
         Cal.Info cal = Cal.findCalendar(c, calName);
+        if (cal == null && later) cal = Cal.findCalendar(c, "やること");   // あとでが同期されていないとき
         if (cal == null) return Outcome.err("「" + calName + "」というカレンダーが見つかりません。使えるのは: " + Cal.calendarNames(c));
         if (!cal.writable) return Outcome.err("「" + cal.name + "」は書き込みできません。");
 
-        // マーカーは末尾に付ける（先頭に付くのは完了の「済」だけ）
+        // マーカーは末尾（先頭に付くのは完了の「済」だけ）
         String full = title;
         if (task) {
-            String area = in.optString("area", "仕事").contains("私用") ? "【私用】" : "【仕事】";
-            if (!full.contains("【仕事】") && !full.contains("【私用】")) full = full + area;
-            if (in.optBoolean("waiting", false) && !full.contains("【待ち】")) full = full + "【待ち】";
+            if (in.optBoolean("memo", false)) full = full + "【メモ】";
+            else if (in.optBoolean("goal", false)) full = full + "【目標】";
+            else {
+                String area = in.optString("area", "仕事").contains("私用") ? "【私用】" : "【仕事】";
+                if (!full.contains("【仕事】") && !full.contains("【私用】")) full = full + area;
+                if (in.optBoolean("waiting", false) && !full.contains("【待ち】")) full = full + "【待ち】";
+            }
         }
 
         long id;
         String when;
-        if (task && st.isEmpty()) {
-            id = Cal.insertAllDay(c, cal.id, full, date, notes, 6 * 60);   // 前日18時に通知
+        if (st.isEmpty()) {
+            id = Cal.insertAllDay(c, cal.id, full, date, notes, task ? 6 * 60 : -1);
             when = Cal.allDayDate(Cal.dateToUtcMidnight(date));
         } else {
-            if (st.isEmpty()) return Outcome.err("時間の決まった予定には start_time（HH:MM）が要ります。時間が決まっていないなら kind=タスク で登録してください。");
             long begin = Cal.timeOnDay(date, st);
             String et = in.optString("end_time", "");
             long end = et.isEmpty() ? begin + 3600000L : Cal.timeOnDay(date, et);
@@ -497,8 +516,34 @@ public class Tools {
             when = Cal.fmt("M/d(E) H:mm", begin);
         }
         Cal.syncNow(c, cal);
-        return Outcome.ok("登録しました（event_id=" + id + "、" + cal.name + (task ? "／終日・予定なし" : "") + "）。"
-                + "右腕ボードには最大1分で出ます。", "📅 " + when + " " + full);
+        return Outcome.ok("登録しました（event_id=" + id + "、" + cal.name + (task ? "／予定なし" : "") + "）。"
+                + "右腕ボードには最大1分で出ます。", "📅 " + when + " " + full + "（" + cal.name + "）");
+    }
+
+    private static Outcome moveEvent(Host h, JSONObject in) throws Exception {
+        Context c = h.context();
+        if (!Cal.canWrite(c)) return Outcome.err("カレンダーへの書き込み許可がありません。");
+        long id = in.getLong("event_id");
+        Cal.Event e = Cal.event(c, id);
+        if (e == null) return Outcome.err("その予定が見つかりません（event_id=" + id + "）");
+        if (Cal.isPayment(e.calendar)) return Outcome.err("支払カレンダーのものは動かさない決まりです。");
+        String to = in.getString("to");
+        if (Cal.isPayment(to)) return Outcome.err("支払カレンダーへは移せません。");
+        Cal.Info dst = Cal.findCalendar(c, to);
+        if (dst == null) return Outcome.err("「" + to + "」というカレンダーが見つかりません。使えるのは: " + Cal.calendarNames(c));
+        if (e.calendar != null && e.calendar.equals(dst.name)) return Outcome.ok("すでに" + dst.name + "にあります。", null);
+
+        boolean task = !dst.name.contains("仕事") && !dst.name.contains("プライベート");
+        long made;
+        if (e.allDay) {
+            made = Cal.insertAllDay(c, dst.id, e.title, Cal.fmtUtc("yyyy-MM-dd", e.begin), e.notes, task ? 6 * 60 : -1);
+        } else {
+            made = Cal.insertTimed(c, dst.id, e.title, e.begin, e.end, e.notes, 30, task);
+        }
+        Cal.delete(c, id);
+        Cal.syncNow(c, null);
+        return Outcome.ok("「" + e.title + "」を" + dst.name + "へ移しました（新しい event_id=" + made + "）",
+                "➡ " + dst.name + "へ: " + e.title);
     }
 
     private static Outcome recordMoney(Host h, JSONObject in) throws Exception {

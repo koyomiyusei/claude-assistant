@@ -195,6 +195,17 @@ public class SettingsActivity extends Activity {
         });
         resetSys.setOnClickListener(v -> sys.setText(Prefs.DEFAULT_SYSTEM));
 
+        section("カレンダーの運用ルール");
+        note(Rules.state(this) + "\n右腕ボードと同じ決まりを rules.md から読み込んで、毎回の会話に足しています。"
+                + "ボード側の決まりが変わったら rules.md を直すだけで反映されます（アプリの更新は不要）。");
+        Button ruleNow = ui.pill(this, "ルールを取り直す", false);
+        box.addView(ruleNow);
+        ruleNow.setOnClickListener(v -> {
+            getSharedPreferences("assistant_rules", MODE_PRIVATE).edit().putLong("at", 0).apply();
+            Rules.refreshIfStale(this);
+            Toast.makeText(this, "取り直しています…", Toast.LENGTH_SHORT).show();
+        });
+
         // ---- できること ----
         section("できること（いま使えるツール）");
         note(Tools.summary(this));
