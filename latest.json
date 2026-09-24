@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "0.2",
+  "versionCode": 3,
+  "versionName": "0.3",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "カレンダー対応：今日の予定の確認、予定・タスクの登録（【期限】【やる】は終日・予定なし）、「済」で完了、変更・削除は確認つき／ワークスペースID設定を追加"
+  "notes": "ワンタップ更新（⬇ボタン、押すだけでダウンロードまで進む・新しい版があるとオレンジで知らせる）／設定に「できること」一覧"
 }

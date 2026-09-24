@@ -44,7 +44,10 @@ public class Updater {
 
     private static final String PREF = "assistant_update";
     private static final String KEY_LAST_CHECK = "last_update_check";
-    private static final long AUTO_INTERVAL = 24L * 60 * 60 * 1000;
+    private static final long AUTO_INTERVAL = 3L * 60 * 60 * 1000;
+
+    /** 黙って確認した結果、新しい版があればそのバージョン名。無ければ null */
+    public static volatile String available;
     private static final String ACTION_INSTALLED = "com.rerise.assistant.INSTALL_RESULT";
 
     // ---------------- バージョン ----------------
@@ -69,17 +72,33 @@ public class Updater {
 
     // ---------------- 確認 ----------------
 
-    /** 1日に1回だけ黙って確認する。新しいものがあるときだけ声をかける */
-    public static void autoCheck(Activity a) {
+    /** 数時間に1回、黙って確認するだけ。見つけたら available に入れて、画面のボタンを光らせる */
+    public static void autoCheck(Activity a, Runnable onFound) {
         SharedPreferences p = a.getSharedPreferences(PREF, Context.MODE_PRIVATE);
         long now = System.currentTimeMillis();
-        if (now - p.getLong(KEY_LAST_CHECK, 0) < AUTO_INTERVAL) return;
+        if (now - p.getLong(KEY_LAST_CHECK, 0) < AUTO_INTERVAL) {
+            if (available != null && onFound != null) onFound.run();
+            return;
+        }
         p.edit().putLong(KEY_LAST_CHECK, now).apply();
-        check(a, true);
+        check(a, MODE_SILENT, onFound);
     }
 
+    /** ボタン一発：確認して、新しければそのままダウンロード＆インストールまで進む */
+    public static void updateNow(Activity a) {
+        Toast.makeText(a, "確認しています…", Toast.LENGTH_SHORT).show();
+        check(a, MODE_DIRECT, null);
+    }
+
+    public static final int MODE_SILENT = 0;   // 黙って確認だけ
+    public static final int MODE_ASK = 1;      // 見つけたら内容を見せて聞く
+    public static final int MODE_DIRECT = 2;   // 見つけたら即ダウンロード
+
     public static void check(final Activity a, final boolean silent) {
-        if (!silent) Toast.makeText(a, "確認しています…", Toast.LENGTH_SHORT).show();
+        check(a, silent ? MODE_SILENT : MODE_ASK, null);
+    }
+
+    public static void check(final Activity a, final int mode, final Runnable onFound) {
         new Thread(new Runnable() {
             public void run() {
                 JSONObject obj = null;
@@ -106,18 +125,18 @@ public class Updater {
                 final String error = err;
                 ui(new Runnable() {
                     public void run() {
-                        present(a, result, error, silent);
+                        present(a, result, error, mode, onFound);
                     }
                 });
             }
         }).start();
     }
 
-    private static void present(Activity a, JSONObject o, String error, boolean silent) {
+    private static void present(Activity a, JSONObject o, String error, int mode, Runnable onFound) {
         if (a.isFinishing() || a.isDestroyed()) return;
 
         if (o == null) {
-            if (!silent) {
+            if (mode != MODE_SILENT) {
                 new AlertDialog.Builder(a).setTitle("確認できませんでした")
                         .setMessage("通信に失敗しました。\n\n" + error)
                         .setPositiveButton("OK", null).show();
@@ -131,7 +150,17 @@ public class Updater {
         String notes = o.optString("notes", "");
 
         if (latest <= currentCode(a)) {
-            if (!silent) Toast.makeText(a, "最新です（v" + currentName(a) + "）", Toast.LENGTH_SHORT).show();
+            available = null;
+            if (mode != MODE_SILENT) Toast.makeText(a, "最新です（v" + currentName(a) + "）", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        available = latestName;
+        if (onFound != null) onFound.run();
+        if (mode == MODE_SILENT) return;
+        if (mode == MODE_DIRECT) {
+            Toast.makeText(a, "v" + latestName + " を入れます", Toast.LENGTH_SHORT).show();
+            startUpdate(a, apkUrl, latestName);
             return;
         }
 
@@ -313,6 +342,7 @@ public class Updater {
                 } catch (Exception ignored) {
                 }
                 if (status == PackageInstaller.STATUS_SUCCESS) {
+                    available = null;
                     Toast.makeText(a, "更新しました", Toast.LENGTH_LONG).show();
                 } else {
                     String m = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);

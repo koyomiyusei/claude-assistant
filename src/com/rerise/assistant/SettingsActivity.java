@@ -183,17 +183,21 @@ public class SettingsActivity extends Activity {
         });
         resetSys.setOnClickListener(v -> sys.setText(Prefs.DEFAULT_SYSTEM));
 
+        // ---- できること ----
+        section("できること（いま使えるツール）");
+        note(Tools.summary(this));
+
         // ---- その他 ----
         section("このアプリ");
         note("v" + Updater.currentName(this) + "　／　" + Usage.monthSummary(this) + "（1ドル150円換算）");
         LinearLayout ur = row();
-        Button upd = ui.pill(this, "更新確認", false);
+        Button upd = ui.pill(this, "今すぐ更新", false);
         Button clear = ui.pill(this, "会話をリセット", false);
         ur.addView(upd);
         addGap(ur);
         ur.addView(clear);
         box.addView(ur);
-        upd.setOnClickListener(v -> Updater.check(this, false));
+        upd.setOnClickListener(v -> Updater.updateNow(this));
         clear.setOnClickListener(v -> {
             Conversation.get(this).reset(this);
             Toast.makeText(this, "新しい会話にしました", Toast.LENGTH_SHORT).show();

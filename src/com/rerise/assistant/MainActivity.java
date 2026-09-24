@@ -20,6 +20,7 @@ public class MainActivity extends Activity implements Tools.Host {
 
     private ChatView chat;
     private Ui ui;
+    private TextView update;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -39,6 +40,13 @@ public class MainActivity extends Activity implements Tools.Host {
         TextView title = ui.label(this, "アシスタント", 20, ui.text);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        update = ui.iconButton(this, "⬇", ui.userBubble, ui.text, 40);
+        update.setContentDescription("更新");
+        LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ui.dp(40));
+        up.rightMargin = ui.dp(8);
+        head.addView(update, up);
 
         TextView fresh = ui.iconButton(this, "＋", ui.userBubble, ui.text, 40);
         fresh.setContentDescription("新しい会話");
@@ -76,6 +84,7 @@ public class MainActivity extends Activity implements Tools.Host {
             chat.reload();
         });
         gear.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        update.setOnClickListener(v -> Updater.updateNow(this));
 
         if (!Prefs.hasApiKey(this)) {
             new AlertDialog.Builder(this)
@@ -112,7 +121,25 @@ public class MainActivity extends Activity implements Tools.Host {
     protected void onResume() {
         super.onResume();
         if (!chat.isBusy()) chat.reload();   // 重ね表示側で話した内容も反映
-        Updater.autoCheck(this);
+        Updater.autoCheck(this, this::showUpdateBadge);
+        showUpdateBadge();
+    }
+
+    /** 新しい版が見つかっているときは、⬇ボタンをオレンジにしてバージョンを出す */
+    private void showUpdateBadge() {
+        if (update == null) return;
+        String v = Updater.available;
+        if (v == null) {
+            update.setText("⬇");
+            update.setBackground(ui.round(ui.userBubble, 20));
+            update.setTextColor(ui.text);
+            update.setPadding(0, 0, 0, 0);
+        } else {
+            update.setText("⬇ v" + v);
+            update.setBackground(ui.round(ui.accent, 20));
+            update.setTextColor(ui.onAccent);
+            update.setPadding(ui.dp(12), 0, ui.dp(12), 0);
+        }
     }
 
     @Override

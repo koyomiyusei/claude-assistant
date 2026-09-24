@@ -160,6 +160,26 @@ public class Tools {
         return a;
     }
 
+    /** 設定画面に出す「できること」一覧。許可の状態で増減する */
+    public static String summary(Context c) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("・アラーム／タイマー\n");
+        sb.append("・クリップボードにコピー\n");
+        if (Cal.canRead(c)) {
+            sb.append("・予定とタスクの確認（").append(Cal.calendarNames(c)).append("）\n");
+        } else {
+            sb.append("・予定とタスクの確認 … カレンダー未許可\n");
+        }
+        if (Cal.canWrite(c)) {
+            sb.append("・予定とタスクの登録（【期限】【やる】は終日・予定なし）\n");
+            sb.append("・「済」を付けて完了／変更・削除（確認あり）\n");
+            sb.append("・支払カレンダーは読むだけ（書き込まない）\n");
+        }
+        sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
+        sb.append("・音声入力（呼び出したらすぐ聞く：").append(Prefs.autoVoice(c) ? "オン" : "オフ").append("）");
+        return sb.toString();
+    }
+
     public static String statusLabel(String name) {
         switch (name == null ? "" : name) {
             case "set_alarm":
