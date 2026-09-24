@@ -129,7 +129,7 @@ public class Tools {
                             + "【タイトルの書き方】短い名詞句。15文字以内。一番大事な言葉を先頭に置く（ウィジェットは頭しか見えない）。"
                             + "文章にしない。人が絡むものは「用件 名前」の順（例: 制服 出射さん）。\n"
                             + "【説明(notes)の書き方】冒頭に「▶ 」で始まる箇条書きで、やる動作だけを1行1動作で並べる。"
-                            + "そのあと1行空けて、背景・条件・金額などの詳細を書く。調べ物の結果もここに入れる。",
+                            + "そのあと1行空けて、背景・条件・金額などの詳細を書く。",
                     props(
                             prop("title", "string", "短い名詞句。マーカーは付けない"),
                             prop("kind", "string", "予定 / タスク"),
@@ -423,6 +423,13 @@ public class Tools {
         int days = Math.max(1, Math.min(60, in.optInt("days", 1)));
         String only = in.optString("calendar", "");
         boolean includeDone = in.optBoolean("include_done", false);
+
+        // 右腕ボードやPCでの変更を拾うため、読む前に同期を要求して少し待つ
+        Cal.syncNow(c, null);
+        try {
+            Thread.sleep(900);
+        } catch (InterruptedException ignored) {
+        }
 
         long from = Cal.dayStart(start);
         long to = from + days * 86400000L;

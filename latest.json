@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "0.4",
+  "versionCode": 5,
+  "versionName": "0.5",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "右腕ボードのルールに合わせたカレンダー運用（マーカーは末尾・完了は「済 」・支払は読むだけ＋家計簿の記録）／登録後すぐ同期／予定の答え方を見やすく整理／連絡先・電話・SMS・アプリ起動・ライト・マナー・音量・位置情報・地図／落ちたときのエラー記録"
+  "notes": "調べ物を勝手にタスク化しないように変更／予定を読む前にカレンダーを同期（右腕ボードやPCでの変更をすぐ拾う）"
 }
