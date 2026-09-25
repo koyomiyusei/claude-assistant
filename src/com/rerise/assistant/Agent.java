@@ -234,6 +234,12 @@ public class Agent {
         String names = Cal.calendarNames(ctx);
         if (names.isEmpty()) return "";
         Rules.refreshIfStale(ctx);
+        // ルールの予定はカレンダー側にあるので、たまに同期を突いて新しい版を引き寄せる
+        long last = Prefs.getLong(ctx, "rules_sync_at", 0);
+        if (System.currentTimeMillis() - last > 10 * 60 * 1000) {
+            Prefs.putLong(ctx, "rules_sync_at", System.currentTimeMillis());
+            Cal.syncNow(ctx, null);
+        }
         return "\n\n# 端末で読み書きできるカレンダー\n" + names + "\n\n" + Rules.text(ctx);
     }
 

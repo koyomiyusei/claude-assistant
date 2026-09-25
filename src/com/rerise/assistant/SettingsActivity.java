@@ -202,6 +202,7 @@ public class SettingsActivity extends Activity {
         box.addView(ruleNow);
         ruleNow.setOnClickListener(v -> {
             getSharedPreferences("assistant_rules", MODE_PRIVATE).edit().putLong("at", 0).apply();
+            Cal.syncNow(this, null);
             Rules.refreshIfStale(this);
             Toast.makeText(this, "取り直しています…", Toast.LENGTH_SHORT).show();
         });

@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "0.7",
+  "versionCode": 8,
+  "versionName": "0.8",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "運用ルールをカレンダーの【運用ルール】予定から読むように（右腕ボード側で書き換えれば即反映。無ければGitHubのrules.md→初期ルールの順）"
+  "notes": "ルールの予定を自動で拾いに行くように（10分ごとに同期を要求）。ボード側で説明欄を直したら、こちらは何もしなくても反映されます"
 }
