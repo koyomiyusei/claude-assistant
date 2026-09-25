@@ -34,6 +34,11 @@ public class ChatView extends LinearLayout implements Agent.Ui {
     private final TextView mic, send;
     private final Agent agent;
     private final Speech speech;
+    private final Talk talk;
+    private final TextView speaker;
+    private boolean continuous;          // 連続会話モード（読み上げ→自動でまた聞く）
+    private String pendingImage;         // 添える画像（base64）
+    private String pendingImageType;
     private TextView streaming;         // 今流れている assistant の吹き出し
     private boolean voiceStarted;       // 今回の入力が音声から始まったか（そのまま送信する）
 
@@ -43,6 +48,7 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         ui = new Ui(c);
         agent = new Agent(host, this);
         speech = new Speech(c);
+        talk = new Talk(c);
         setOrientation(VERTICAL);
 
         scroll = new ScrollView(c);
@@ -78,6 +84,11 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         input.setImeOptions(EditorInfo.IME_ACTION_SEND);
         row.addView(input, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        speaker = ui.iconButton(c, "🔊", ui.userBubble, ui.text, 44);
+        LayoutParams kp = new LayoutParams(ui.dp(44), ui.dp(44));
+        kp.leftMargin = ui.dp(8);
+        row.addView(speaker, kp);
+
         mic = ui.iconButton(c, "🎤", ui.userBubble, ui.text, 44);
         LayoutParams mp = new LayoutParams(ui.dp(44), ui.dp(44));
         mp.leftMargin = ui.dp(8);
@@ -98,6 +109,14 @@ public class ChatView extends LinearLayout implements Agent.Ui {
             }
         });
         mic.setOnClickListener(v -> toggleVoice());
+        speaker.setOnClickListener(v -> {
+            continuous = !continuous;
+            speaker.setBackground(ui.round(continuous ? ui.accent : ui.userBubble, 22));
+            speaker.setTextColor(continuous ? ui.onAccent : ui.text);
+            if (!continuous) talk.stop();
+            Toast.makeText(ctx, continuous ? "連続会話モード：答えを読み上げて、そのまま次を聞きます"
+                    : "連続会話モードを切りました", Toast.LENGTH_SHORT).show();
+        });
         input.setOnEditorActionListener((v, id, e) -> {
             if (id == EditorInfo.IME_ACTION_SEND) {
                 submit();
@@ -137,6 +156,21 @@ public class ChatView extends LinearLayout implements Agent.Ui {
 
     public void release() {
         speech.stop();
+        talk.stop();
+    }
+
+    public void destroy() {
+        speech.stop();
+        talk.release();
+    }
+
+    /** 写真を添える（次の送信で一緒に送る） */
+    public void attachImage(String base64, String mediaType) {
+        pendingImage = base64;
+        pendingImageType = mediaType;
+        input.setHint("この写真について聞く…");
+        addBubble("card", "🖼 写真を添えました。何を知りたいか書いて送ってください");
+        scrollToEnd();
     }
 
     public boolean isBusy() {
@@ -154,10 +188,13 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         speech.stop();
         input.setText("");
         if (Conversation.get(ctx).display.length() == 0) list.removeAllViews();
-        addBubble("user", t);
+        addBubble("user", (pendingImage == null ? "" : "🖼 ") + t);
         streaming = null;
         send.setText("■");
-        agent.send(t);
+        agent.send(t, pendingImage, pendingImageType);
+        pendingImage = null;
+        pendingImageType = null;
+        input.setHint("話しかける / 入力");
         scrollToEnd();
     }
 
@@ -271,6 +308,12 @@ public class ChatView extends LinearLayout implements Agent.Ui {
 
     public void onDone() {
         send.setText("↑");
+        if (continuous && streaming != null) {
+            String said = streaming.getText().toString();
+            talk.speak(said, () -> {
+                if (continuous && !agent.isRunning()) startVoice();
+            });
+        }
         streaming = null;
         status.setText(Usage.monthSummary(ctx));
         status.setVisibility(VISIBLE);

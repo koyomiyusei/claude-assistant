@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rerise.assistant"
-    android:versionCode="9"
-    android:versionName="0.9">
+    android:versionCode="10"
+    android:versionName="1.0">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
 
@@ -95,6 +95,17 @@
             android:name=".AssistService$SessionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true" />
+
+        <!-- 通知を読む（本人が 設定→通知へのアクセス で許可したときだけ動く） -->
+        <service
+            android:name=".NotifyService"
+            android:label="@string/assist_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <!-- アシスタント登録に必須の音声認識サービス（Google へ中継するだけ） -->
         <service

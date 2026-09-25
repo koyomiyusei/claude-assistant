@@ -58,6 +58,11 @@ public class Agent {
     }
 
     public void send(final String userText) {
+        send(userText, null, null);
+    }
+
+    /** 画像を添えて送る（base64・media typeは image/jpeg） */
+    public void send(final String userText, final String imageB64, final String mediaType) {
         if (running) return;
         running = true;
         lastUserText = userText;
@@ -65,10 +70,20 @@ public class Agent {
         final Context ctx = host.context().getApplicationContext();
         final Conversation conv = Conversation.get(ctx);
         try {
-            conv.messages.put(new JSONObject().put("role", "user").put("content", userText));
+            if (imageB64 == null) {
+                conv.messages.put(new JSONObject().put("role", "user").put("content", userText));
+            } else {
+                JSONArray blocks = new JSONArray()
+                        .put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                                .put("type", "base64").put("media_type", mediaType == null ? "image/jpeg" : mediaType)
+                                .put("data", imageB64)))
+                        .put(new JSONObject().put("type", "text")
+                                .put("text", userText.isEmpty() ? "この写真について教えて" : userText));
+                conv.messages.put(new JSONObject().put("role", "user").put("content", blocks));
+            }
         } catch (Exception ignored) {
         }
-        conv.addDisplay("user", userText);
+        conv.addDisplay("user", (imageB64 == null ? "" : "🖼 ") + userText);
         conv.save(ctx);
 
         new Thread(new Runnable() {
@@ -256,7 +271,8 @@ public class Agent {
                 .put("model", model)
                 .put("max_tokens", 8000)
                 .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + calendarLine(ctx)
-                        + Mem.forPrompt(ctx) + (Prefs.webSearch(ctx) ? searchLine() : ""))
+                        + Mem.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
+                        + Screen.forPrompt())
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
 
         JSONArray tools = Tools.definitions(ctx);
@@ -276,19 +292,6 @@ public class Agent {
         if (!haiku) body.put("output_config", new JSONObject()
                 .put("effort", deep ? Prefs.searchEffort(ctx) : Prefs.effort(ctx)));
         return body;
-    }
-
-    /** 調べ物のときの構え。Perplexity のように、出典と次の一手まで出す */
-    private static String searchLine() {
-        return "\n\n# 調べ物のやり方\n"
-                + "- 公式サイト・公的機関・メーカーなどの一次情報を優先する。アフィリエイト目的のまとめ記事は根拠にしない\n"
-                + "- 言い切る前に裏を取る。出典は本文のその場に [ドメイン](URL) の形で付ける\n"
-                + "- 「噂・未確定」と「確定情報」を分けて書く\n"
-                + "- 価格は日本円。海外のものは現地価格と概算円、日本で買えるかも書く\n"
-                + "- 良い面だけでなく、弱点・向いていない場合も必ず書く\n"
-                + "- 数字・日付・型番は記憶で言い切らず、調べた結果を使う\n"
-                + "- 最後の行に必ず「つぎに: 質問1 | 質問2 | 質問3」を付ける。"
-                + "本人が次に知りたくなることを、短い質問文で3つ。ボタンとして表示されるので質問だけを書く\n";
     }
 
     private static String nowLine() {

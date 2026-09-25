@@ -237,6 +237,17 @@ public class Tools {
                                 .put("description", "true なら経路案内を開始する")}
                 ), "query"));
 
+        if (Screen.has()) {
+            a.put(tool("read_screen",
+                    "呼び出す直前に開いていた画面の文字を読む。「このLINEに返信文」「この画面を要約」などで使う。",
+                    props()));
+        }
+        if (NotifyService.enabled(c)) {
+            a.put(tool("list_notifications",
+                    "今スマホに出ている通知を新しい順に読む。「未読まとめて」「何か来てる？」で使う。",
+                    props(prop("limit", "integer", "最大件数（省略時20）"))));
+        }
+
         a.put(tool("remember",
                 "本人が「覚えといて」と言ったことを端末に保存する。次からの会話の前提として毎回読み込まれる。"
                         + "短い一文にまとめて保存すること。頼まれていないことは保存しない。",
@@ -281,6 +292,10 @@ public class Tools {
         sb.append("・アプリを開く／ライト／マナーモード／音量\n");
         sb.append(Device.canLocate(c) ? "・今いる場所／周辺検索／経路案内\n" : "・地図・経路案内（現在地は未許可）\n");
         sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
+        sb.append(NotifyService.enabled(c) ? "・通知をまとめて読む\n" : "・通知の読み取り … 未許可\n");
+        sb.append("・直前に見ていた画面を読む（サイドキーから呼んだとき）\n");
+        sb.append("・写真を見せて聞く（📎から）\n");
+        sb.append("・読み上げ／連続会話（🔊）\n");
         sb.append("・覚えておく／忘れる（記憶 ").append(Mem.count(c)).append("件）\n");
         sb.append("・過去の会話から探す（直近5本）\n");
         sb.append("・音声入力（呼び出したらすぐ聞く：").append(Prefs.autoVoice(c) ? "オン" : "オフ").append("）");
@@ -328,6 +343,10 @@ public class Tools {
                 return "今いる場所を調べています…";
             case "open_maps":
                 return "地図を開いています…";
+            case "read_screen":
+                return "画面を読んでいます…";
+            case "list_notifications":
+                return "通知を見ています…";
             case "remember":
                 return "覚えています…";
             case "forget":
@@ -384,6 +403,23 @@ public class Tools {
                     return currentLocation(h, in);
                 case "open_maps":
                     return openMaps(h, in);
+                case "read_screen": {
+                    if (!Screen.has()) return Outcome.err("直前の画面が取れていません（サイドキーから呼ぶと読めます）");
+                    return Outcome.ok("アプリ: " + Screen.app() + "\n----\n" + Screen.text(), null);
+                }
+                case "list_notifications": {
+                    if (!NotifyService.enabled(h.context()))
+                        return Outcome.err("通知へのアクセスが許可されていません。設定画面から許可してください。");
+                    java.util.List<NotifyService.Item> ns = NotifyService.current(h.context(),
+                            Math.max(1, Math.min(50, in.optInt("limit", 20))));
+                    if (ns.isEmpty()) return Outcome.ok("今出ている通知はありません。", null);
+                    StringBuilder sb = new StringBuilder();
+                    for (NotifyService.Item n : ns) {
+                        sb.append("- [").append(n.app).append("] ").append(Cal.fmt("H:mm", n.when)).append(" ")
+                                .append(n.title).append(n.text.isEmpty() ? "" : " / " + n.text).append("\n");
+                    }
+                    return Outcome.ok(sb.toString(), null);
+                }
                 case "remember": {
                     String t = in.getString("text").trim();
                     boolean pin = in.optBoolean("pin", false);

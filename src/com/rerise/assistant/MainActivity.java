@@ -41,6 +41,13 @@ public class MainActivity extends Activity implements Tools.Host {
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        TextView pic = ui.iconButton(this, "📎", ui.userBubble, ui.text, 40);
+        pic.setContentDescription("写真を添える");
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ui.dp(40), ui.dp(40));
+        pp.rightMargin = ui.dp(8);
+        head.addView(pic, pp);
+        pic.setOnClickListener(v -> pickImage());
+
         update = ui.iconButton(this, "⬇", ui.userBubble, ui.text, 40);
         update.setContentDescription("更新");
         LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(
@@ -146,6 +153,60 @@ public class MainActivity extends Activity implements Tools.Host {
     protected void onPause() {
         super.onPause();
         chat.release();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        chat.destroy();
+    }
+
+    /** ギャラリー／カメラから写真を選ぶ */
+    private void pickImage() {
+        new AlertDialog.Builder(this)
+                .setItems(new String[]{"ギャラリーから選ぶ", "カメラで撮る"}, (d, w) -> {
+                    try {
+                        if (w == 0) {
+                            Intent i = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*")
+                                    .addCategory(Intent.CATEGORY_OPENABLE);
+                            startActivityForResult(Intent.createChooser(i, "写真を選ぶ"), 10);
+                        } else {
+                            startActivityForResult(new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE), 11);
+                        }
+                    } catch (Exception e) {
+                        android.widget.Toast.makeText(this, "開けませんでした", android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                }).show();
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (res != RESULT_OK || data == null) return;
+        try {
+            android.graphics.Bitmap bmp = null;
+            if (req == 10 && data.getData() != null) {
+                java.io.InputStream in = getContentResolver().openInputStream(data.getData());
+                bmp = android.graphics.BitmapFactory.decodeStream(in);
+                if (in != null) in.close();
+            } else if (req == 11 && data.getExtras() != null) {
+                bmp = (android.graphics.Bitmap) data.getExtras().get("data");
+            }
+            if (bmp == null) return;
+            int max = 1280;
+            if (bmp.getWidth() > max || bmp.getHeight() > max) {
+                float sc = Math.min(max / (float) bmp.getWidth(), max / (float) bmp.getHeight());
+                bmp = android.graphics.Bitmap.createScaledBitmap(bmp,
+                        Math.round(bmp.getWidth() * sc), Math.round(bmp.getHeight() * sc), true);
+            }
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, bos);
+            String b64 = android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP);
+            chat.attachImage(b64, "image/jpeg");
+        } catch (Throwable e) {
+            App.save(this, "pickImage", e);
+            android.widget.Toast.makeText(this, "写真を読めませんでした", android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ---------------- Tools.Host ----------------

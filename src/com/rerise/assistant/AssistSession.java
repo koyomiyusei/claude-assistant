@@ -98,6 +98,14 @@ public class AssistSession extends VoiceInteractionSession implements Tools.Host
     }
 
     @Override
+    public void onHandleAssist(android.service.voice.VoiceInteractionSession.AssistState state) {
+        try {
+            if (state != null) Screen.capture(state.getAssistStructure());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
         if (chat == null) return;

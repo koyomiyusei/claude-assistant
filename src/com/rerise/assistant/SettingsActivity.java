@@ -31,7 +31,8 @@ public class SettingsActivity extends Activity {
 
     private Ui ui;
     private LinearLayout box;
-    private TextView keyState, assistState, micState;
+    private LinearLayout profileBox;
+    private TextView keyState, assistState, micState, notifyState;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -216,6 +217,40 @@ public class SettingsActivity extends Activity {
         section("できること（いま使えるツール）");
         note(Tools.summary(this));
 
+        // ---- 分野ごとの指示 ----
+        section("分野ごとの指示");
+        note("会話の言葉がキーワードに当たった分野だけ、その指示がその場で足されます。"
+                + "「飲食店なら5軒以上・写真も」のような決まりはここに書きます。タップで編集。");
+        profileBox = new LinearLayout(this);
+        profileBox.setOrientation(LinearLayout.VERTICAL);
+        box.addView(profileBox);
+        LinearLayout prow = row();
+        Button addProf = ui.pill(this, "分野を追加", false);
+        Button resetProf = ui.pill(this, "初期値に戻す", false);
+        prow.addView(addProf);
+        addGap(prow);
+        prow.addView(resetProf);
+        box.addView(prow);
+        addProf.setOnClickListener(v -> editProfile(-1));
+        resetProf.setOnClickListener(v -> {
+            Profiles.reset(this);
+            drawProfiles();
+        });
+        drawProfiles();
+
+        // ---- 通知 ----
+        section("通知の読み取り");
+        notifyState = note("");
+        Button notif = ui.pill(this, "通知へのアクセスを開く", false);
+        box.addView(notif);
+        notif.setOnClickListener(v -> {
+            try {
+                startActivity(NotifyService.settingsIntent());
+            } catch (Exception e) {
+                Toast.makeText(this, "設定 → 通知 → 通知へのアクセス から許可してください", Toast.LENGTH_LONG).show();
+            }
+        });
+
         // ---- 記憶 ----
         section("覚えていること");
         note("「覚えといて」と言ったこと、吹き出しの長押しで足したものがここに入ります。"
@@ -299,6 +334,87 @@ public class SettingsActivity extends Activity {
             if (!names.isEmpty()) m += "\n見えているカレンダー：" + names;
         }
         micState.setText(m);
+        if (notifyState != null) {
+            notifyState.setText(NotifyService.enabled(this)
+                    ? "✅ 通知を読めます（未読まとめ・通知の要約に使います）"
+                    : "⚪ 未許可。許可すると「通知まとめて」が使えます");
+        }
+    }
+
+    /** 分野ごとの指示を並べる */
+    private void drawProfiles() {
+        profileBox.removeAllViews();
+        org.json.JSONArray a = Profiles.all(this);
+        for (int i = 0; i < a.length(); i++) {
+            org.json.JSONObject o = a.optJSONObject(i);
+            if (o == null) continue;
+            final int idx = i;
+            TextView t = ui.label(this, (o.optBoolean("on", true) ? "● " : "○ ") + o.optString("name")
+                    + "\n" + o.optString("keywords"), 14, ui.text);
+            t.setBackground(ui.roundStroke(ui.surface, ui.line, 12));
+            t.setPadding(ui.dp(12), ui.dp(10), ui.dp(12), ui.dp(10));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = ui.dp(8);
+            t.setOnClickListener(v -> editProfile(idx));
+            profileBox.addView(t, lp);
+        }
+    }
+
+    /** 分野の編集画面（名前・キーワード・指示文） */
+    private void editProfile(final int index) {
+        org.json.JSONArray a = Profiles.all(this);
+        org.json.JSONObject o = index >= 0 && index < a.length() ? a.optJSONObject(index) : new org.json.JSONObject();
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        int pad = ui.dp(16);
+        v.setPadding(pad, pad, pad, 0);
+
+        final EditText name = new EditText(this);
+        name.setHint("分野の名前（例: 飲食店）");
+        name.setText(o.optString("name"));
+        name.setTextColor(ui.text);
+        v.addView(name);
+
+        final EditText keys = new EditText(this);
+        keys.setHint("キーワード（カンマ区切り）");
+        keys.setText(o.optString("keywords"));
+        keys.setTextColor(ui.text);
+        v.addView(keys);
+
+        final EditText body = new EditText(this);
+        body.setHint("この分野のときの指示");
+        body.setText(o.optString("text"));
+        body.setTextColor(ui.text);
+        body.setMinLines(8);
+        body.setGravity(Gravity.TOP);
+        body.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        v.addView(body);
+
+        final android.widget.CheckBox on = new android.widget.CheckBox(this);
+        on.setText("この分野を使う");
+        on.setTextColor(ui.text);
+        on.setChecked(o.optBoolean("on", true));
+        v.addView(on);
+
+        ScrollView sc = new ScrollView(this);
+        sc.addView(v);
+
+        android.app.AlertDialog.Builder b = new android.app.AlertDialog.Builder(this)
+                .setTitle(index < 0 ? "分野を追加" : "分野を編集")
+                .setView(sc)
+                .setPositiveButton("保存", (d, w) -> {
+                    Profiles.update(this, index, name.getText().toString().trim(),
+                            keys.getText().toString().trim(), body.getText().toString(), on.isChecked());
+                    drawProfiles();
+                })
+                .setNegativeButton("やめる", null);
+        if (index >= 0) b.setNeutralButton("削除", (d, w) -> {
+            Profiles.remove(this, index);
+            drawProfiles();
+        });
+        b.show();
     }
 
     /** 記憶の一覧。タップでピンの切り替え・削除 */
