@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "0.8",
+  "versionCode": 9,
+  "versionName": "0.9",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "ルールの予定を自動で拾いに行くように（10分ごとに同期を要求）。ボード側で説明欄を直したら、こちらは何もしなくても反映されます"
+  "notes": "調べ物のときだけ深く考える（端末操作は速いまま）／出典つきの調べ方と「つぎに」候補ボタン／記憶（覚えといて・📌ピン・吹き出し長押しで追加）／過去5本の会話から検索"
 }

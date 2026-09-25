@@ -132,8 +132,18 @@ public class Prefs {
         sp(c).edit().putString("model", v).apply();
     }
 
+    /** 端末操作・ふつうの会話の深さ（速さ優先） */
     public static String effort(Context c) {
         return sp(c).getString("effort", "low");
+    }
+
+    /** 調べ物のときの深さ（じっくり） */
+    public static String searchEffort(Context c) {
+        return sp(c).getString("effort_search", "high");
+    }
+
+    public static void setSearchEffort(Context c, String v) {
+        sp(c).edit().putString("effort_search", v).apply();
     }
 
     public static void setEffort(Context c, String v) {

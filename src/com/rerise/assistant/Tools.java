@@ -237,6 +237,24 @@ public class Tools {
                                 .put("description", "true なら経路案内を開始する")}
                 ), "query"));
 
+        a.put(tool("remember",
+                "本人が「覚えといて」と言ったことを端末に保存する。次からの会話の前提として毎回読み込まれる。"
+                        + "短い一文にまとめて保存すること。頼まれていないことは保存しない。",
+                props(
+                        prop("text", "string", "覚える内容（短く1文。例: 車検は2027年3月）"),
+                        new Object[]{"pin", new JSONObject().put("type", "boolean")
+                                .put("description", "特に重要で必ず毎回読ませたいなら true")}
+                ), "text"));
+        a.put(tool("forget",
+                "覚えていることを消す。番号は「覚えていること」に書いてある #番号。",
+                props(prop("id", "integer", "消す記憶の番号")), "id"));
+        a.put(tool("search_past_chats",
+                "過去の会話（直近5本ぶん）から言葉で探す。「前に話したあれ」と言われたときに使う。",
+                props(
+                        prop("query", "string", "探す言葉"),
+                        prop("limit", "integer", "最大件数（省略時5）")
+                ), "query"));
+
         return a;
     }
 
@@ -263,6 +281,8 @@ public class Tools {
         sb.append("・アプリを開く／ライト／マナーモード／音量\n");
         sb.append(Device.canLocate(c) ? "・今いる場所／周辺検索／経路案内\n" : "・地図・経路案内（現在地は未許可）\n");
         sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
+        sb.append("・覚えておく／忘れる（記憶 ").append(Mem.count(c)).append("件）\n");
+        sb.append("・過去の会話から探す（直近5本）\n");
         sb.append("・音声入力（呼び出したらすぐ聞く：").append(Prefs.autoVoice(c) ? "オン" : "オフ").append("）");
         return sb.toString();
     }
@@ -308,6 +328,12 @@ public class Tools {
                 return "今いる場所を調べています…";
             case "open_maps":
                 return "地図を開いています…";
+            case "remember":
+                return "覚えています…";
+            case "forget":
+                return "忘れています…";
+            case "search_past_chats":
+                return "前の会話を探しています…";
             default:
                 return "端末を操作しています…";
         }
@@ -358,6 +384,23 @@ public class Tools {
                     return currentLocation(h, in);
                 case "open_maps":
                     return openMaps(h, in);
+                case "remember": {
+                    String t = in.getString("text").trim();
+                    boolean pin = in.optBoolean("pin", false);
+                    int id = Mem.add(h.context(), t, pin);
+                    return Outcome.ok("覚えました（#" + id + "）", (pin ? "📌 " : "🧠 ") + "覚えた: " + t);
+                }
+                case "forget": {
+                    int id = in.getInt("id");
+                    boolean ok = Mem.remove(h.context(), id);
+                    return ok ? Outcome.ok("消しました（#" + id + "）", "🧠 忘れた: #" + id)
+                            : Outcome.err("その番号の記憶はありません（#" + id + "）");
+                }
+                case "search_past_chats": {
+                    String r = Conversation.searchPast(h.context(), in.getString("query"),
+                            Math.max(1, Math.min(20, in.optInt("limit", 5))));
+                    return Outcome.ok(r.isEmpty() ? "過去の会話に見つかりませんでした。" : r, null);
+                }
                 default:
                     return Outcome.err("未対応のツールです: " + name);
             }

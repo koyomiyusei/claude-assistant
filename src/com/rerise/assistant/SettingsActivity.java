@@ -155,10 +155,15 @@ public class SettingsActivity extends Activity {
         RadioGroup models = radios(Prefs.MODELS, Prefs.model(this));
         models.setOnCheckedChangeListener((g, id) -> Prefs.setModel(this, Prefs.MODELS[id - 1][0]));
 
-        section("考える深さ");
-        note("速さ優先がアシスタント向き。Haiku では無視されます");
+        section("考える深さ（端末操作・ふだんの会話）");
+        note("アラーム・予定登録・ちょっとした返事はここ。速さ優先が向いています");
         RadioGroup efforts = radios(Prefs.EFFORTS, Prefs.effort(this));
         efforts.setOnCheckedChangeListener((g, id) -> Prefs.setEffort(this, Prefs.EFFORTS[id - 1][0]));
+
+        section("考える深さ（調べ物）");
+        note("「調べて」「比較して」「なぜ」などの相談と、Web検索を使ったときはこちらに切り替わります");
+        RadioGroup efforts2 = radios(Prefs.EFFORTS, Prefs.searchEffort(this));
+        efforts2.setOnCheckedChangeListener((g, id) -> Prefs.setSearchEffort(this, Prefs.EFFORTS[id - 1][0]));
 
         section("機能");
         final Switch web = toggle("Web検索を使う（1,000回あたり約1,500円）", Prefs.webSearch(this));
@@ -210,6 +215,14 @@ public class SettingsActivity extends Activity {
         // ---- できること ----
         section("できること（いま使えるツール）");
         note(Tools.summary(this));
+
+        // ---- 記憶 ----
+        section("覚えていること");
+        note("「覚えといて」と言ったこと、吹き出しの長押しで足したものがここに入ります。"
+                + "📌 は必ず毎回読み込みます。現在 " + Mem.count(this) + " 件。");
+        Button memList = ui.pill(this, "記憶を見る・消す", false);
+        box.addView(memList);
+        memList.setOnClickListener(v -> showMemories());
 
         // ---- 最後のエラー ----
         String crash = App.last(this);
@@ -286,6 +299,43 @@ public class SettingsActivity extends Activity {
             if (!names.isEmpty()) m += "\n見えているカレンダー：" + names;
         }
         micState.setText(m);
+    }
+
+    /** 記憶の一覧。タップでピンの切り替え・削除 */
+    private void showMemories() {
+        org.json.JSONArray a = Mem.all(this);
+        if (a.length() == 0) {
+            Toast.makeText(this, "まだ何も覚えていません", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] items = new String[a.length()];
+        final int[] ids = new int[a.length()];
+        for (int i = 0; i < a.length(); i++) {
+            org.json.JSONObject o = a.optJSONObject(i);
+            ids[i] = o.optInt("id");
+            items[i] = (o.optBoolean("pinned") ? "📌 " : "・") + o.optString("text");
+        }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("覚えていること")
+                .setItems(items, (d, w) -> {
+                    final int id = ids[w];
+                    new android.app.AlertDialog.Builder(this)
+                            .setItems(new String[]{"📌 を付ける／外す", "消す"}, (d2, w2) -> {
+                                if (w2 == 0) {
+                                    org.json.JSONObject o = Mem.all(this).optJSONObject(indexOf(ids, id));
+                                    Mem.pin(this, id, o == null || !o.optBoolean("pinned"));
+                                } else {
+                                    Mem.remove(this, id);
+                                }
+                                showMemories();
+                            }).show();
+                })
+                .setPositiveButton("閉じる", null).show();
+    }
+
+    private static int indexOf(int[] arr, int v) {
+        for (int i = 0; i < arr.length; i++) if (arr[i] == v) return i;
+        return 0;
     }
 
     private void testConnection() {

@@ -79,9 +79,56 @@ public class Conversation {
             } catch (Exception ignored) {
             }
         }
+        trimHistory(c);
         while (messages.length() > 0) messages.remove(0);
         while (display.length() > 0) display.remove(0);
         save(c);
+    }
+
+    /** 過去の会話（history/ に残したもの）から、言葉で探す。直近5本まで残している */
+    public static synchronized String searchPast(Context c, String query, int limit) {
+        StringBuilder sb = new StringBuilder();
+        File dir = new File(c.getFilesDir(), "history");
+        File[] fs = dir.listFiles();
+        if (fs == null) return "";
+        java.util.Arrays.sort(fs, (a, b) -> b.getName().compareTo(a.getName()));
+        String q = query.trim();
+        int hit = 0;
+        for (File f : fs) {
+            try {
+                byte[] b = new byte[(int) f.length()];
+                FileInputStream in = new FileInputStream(f);
+                int off = 0, n;
+                while (off < b.length && (n = in.read(b, off, b.length - off)) > 0) off += n;
+                in.close();
+                JSONObject o = new JSONObject(new String(b, StandardCharsets.UTF_8));
+                JSONArray d = o.optJSONArray("display");
+                if (d == null) continue;
+                for (int i = 0; i < d.length() && hit < limit; i++) {
+                    String t = d.getJSONObject(i).optString("text");
+                    if (t.contains(q)) {
+                        hit++;
+                        String head = f.getName().replace(".json", "");
+                        String body = t.length() > 300 ? t.substring(0, 300) + "…" : t;
+                        sb.append("[").append(head).append("] ")
+                                .append(d.getJSONObject(i).optString("kind")).append(": ")
+                                .append(body).append("\n");
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            if (hit >= limit) break;
+        }
+        return sb.toString();
+    }
+
+    /** 残す会話は直近5本まで。古いものは消す */
+    private static void trimHistory(Context c) {
+        File dir = new File(c.getFilesDir(), "history");
+        File[] fs = dir.listFiles();
+        if (fs == null || fs.length <= 5) return;
+        java.util.Arrays.sort(fs, (a, b) -> a.getName().compareTo(b.getName()));
+        for (int i = 0; i < fs.length - 5; i++) fs[i].delete();
     }
 
     public synchronized void addDisplay(String kind, String text) {

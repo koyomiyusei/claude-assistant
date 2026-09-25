@@ -238,6 +238,37 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         scrollToEnd();
     }
 
+    /** 調べ物のあとの「つぎに」候補。押すとそのまま質問になる */
+    public void onSuggestions(java.util.List<String> questions) {
+        if (questions == null || questions.isEmpty()) return;
+        LinearLayout wrap = new LinearLayout(ctx);
+        wrap.setOrientation(VERTICAL);
+        wrap.setPadding(ui.dp(2), ui.dp(2), ui.dp(2), ui.dp(2));
+        TextView head = ui.label(ctx, "つぎに", 12, ui.sub);
+        head.setPadding(ui.dp(4), 0, 0, ui.dp(4));
+        wrap.addView(head);
+        for (String q : questions) {
+            TextView chip = ui.label(ctx, q, 14, ui.accent);
+            chip.setBackground(ui.roundStroke(ui.surface, ui.accent, 16));
+            chip.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(8));
+            chip.setClickable(true);
+            LayoutParams cp = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            cp.bottomMargin = ui.dp(6);
+            chip.setOnClickListener(v -> {
+                wrap.setVisibility(GONE);
+                sendText(q);
+            });
+            wrap.addView(chip, cp);
+        }
+        LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = ui.dp(4);
+        list.addView(wrap, lp);
+        streaming = null;
+        scrollToEnd();
+    }
+
     public void onDone() {
         send.setText("↑");
         streaming = null;
@@ -306,6 +337,10 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         switch (kind) {
             case "user":
                 t.setText(text);
+                t.setOnLongClickListener(v -> {
+                    bubbleMenu(text);
+                    return true;
+                });
                 t.setBackground(ui.round(ui.userBubble, 18));
                 t.setPadding(ui.dp(14), ui.dp(9), ui.dp(14), ui.dp(9));
                 lp.gravity = Gravity.END;
@@ -331,14 +366,30 @@ public class ChatView extends LinearLayout implements Agent.Ui {
                 lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
                 final TextView tv = t;
                 t.setOnLongClickListener(v -> {
-                    ClipboardManager cm = (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
-                    cm.setPrimaryClip(ClipData.newPlainText("assistant", tv.getText().toString()));
-                    Toast.makeText(ctx, "コピーしました", Toast.LENGTH_SHORT).show();
+                    bubbleMenu(tv.getText().toString());
                     return true;
                 });
         }
         list.addView(t, lp);
         return t;
+    }
+
+    /** 吹き出しの長押しメニュー */
+    private void bubbleMenu(final String text) {
+        new android.app.AlertDialog.Builder(ctx)
+                .setItems(new String[]{"コピー", "これを覚えておく", "覚えて📌（必ず毎回読む）"}, (d, w) -> {
+                    if (w == 0) {
+                        ClipboardManager cm = (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
+                        cm.setPrimaryClip(ClipData.newPlainText("assistant", text));
+                        Toast.makeText(ctx, "コピーしました", Toast.LENGTH_SHORT).show();
+                    } else {
+                        String t = text.length() > 300 ? text.substring(0, 300) + "…" : text;
+                        int id = Mem.add(ctx, t, w == 2);
+                        addBubble("card", (w == 2 ? "📌 " : "🧠 ") + "覚えた: " + (t.length() > 40 ? t.substring(0, 40) + "…" : t));
+                        Toast.makeText(ctx, "記憶に追加しました（#" + id + "）", Toast.LENGTH_SHORT).show();
+                        scrollToEnd();
+                    }
+                }).show();
     }
 
     private void scrollToEnd() {

@@ -19,6 +19,9 @@ import java.util.concurrent.CountDownLatch;
 public class Agent {
 
     public interface Ui {
+        /** 調べ物のあとに出す「つぎに聞くこと」の候補 */
+        void onSuggestions(java.util.List<String> questions);
+
         void onAssistantText(String fullText);   // 今の吹き出しの全文（差分ではない）
 
         void onStatus(String status);           // null で消す
@@ -37,6 +40,8 @@ public class Agent {
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile ClaudeClient client;
     private volatile boolean running;
+    private volatile String lastUserText = "";
+    private volatile boolean usedSearch;
 
     public Agent(Tools.Host host, Ui ui) {
         this.host = host;
@@ -55,6 +60,8 @@ public class Agent {
     public void send(final String userText) {
         if (running) return;
         running = true;
+        lastUserText = userText;
+        usedSearch = false;
         final Context ctx = host.context().getApplicationContext();
         final Conversation conv = Conversation.get(ctx);
         try {
@@ -106,7 +113,8 @@ public class Agent {
 
         for (int round = 0; round < MAX_ROUNDS; round++) {
             client = new ClaudeClient();
-            JSONObject body = buildRequest(ctx, conv);
+            boolean deep = usedSearch || looksLikeResearch(lastUserText);
+            JSONObject body = buildRequest(ctx, conv, deep);
             status("考えています…");
 
             ClaudeClient.Result r = client.send(key, Prefs.workspaceId(ctx), body, new ClaudeClient.Listener() {
@@ -132,6 +140,7 @@ public class Agent {
                 return;
             }
 
+            if (r.webSearches > 0) usedSearch = true;
             Usage.add(ctx, conv, body.optString("model"), r);
 
             // 応答を履歴に積む（pause_turn の続きなら同じ assistant メッセージに連結）
@@ -148,6 +157,19 @@ public class Agent {
                 continue;
             }
             if (!"tool_use".equals(r.stopReason)) {
+                // 「つぎに: A | B | C」の行を本文から外して、候補ボタンとして出す
+                String body2 = shown.toString();
+                java.util.List<String> qs = extractSuggestions(body2);
+                if (!qs.isEmpty()) {
+                    final String clean = stripSuggestions(body2).trim();
+                    conv.updateLastDisplay("assistant", clean);
+                    post(new Runnable() {
+                        public void run() {
+                            ui.onAssistantText(clean);
+                            ui.onSuggestions(qs);
+                        }
+                    });
+                }
                 if ("max_tokens".equals(r.stopReason)) {
                     shown.append("\n\n（長すぎて途中で切れました）");
                     final String t = shown.toString();
@@ -192,13 +214,49 @@ public class Agent {
         throw new ClaudeClient.ApiException(0, "やり取りが長くなりすぎたので止めました");
     }
 
-    private JSONObject buildRequest(Context ctx, Conversation conv) throws Exception {
+    /** 調べ物っぽい頼みかどうか。深く考えるかの入口の判断 */
+    static boolean looksLikeResearch(String t) {
+        if (t == null) return false;
+        String[] keys = {"調べ", "検索", "比較", "どっち", "どちら", "おすすめ", "なぜ", "理由", "相場", "価格",
+                "いくら", "最新", "ニュース", "天気", "口コミ", "レビュー", "メリット", "デメリット", "選び方",
+                "違い", "方法", "やり方", "評判", "どう思う", "考えて", "相談", "まとめて"};
+        for (String k : keys) if (t.contains(k)) return true;
+        return false;
+    }
+
+    static java.util.List<String> extractSuggestions(String body) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (body == null) return out;
+        for (String line : body.split("\n")) {
+            String s = line.trim();
+            if (s.startsWith("つぎに:") || s.startsWith("つぎに：")) {
+                for (String q : s.substring(4).split("[|｜]")) {
+                    String t = q.trim().replaceAll("^[・\\-\\s]+", "");
+                    if (t.length() > 1 && t.length() < 60) out.add(t);
+                }
+            }
+        }
+        return out;
+    }
+
+    static String stripSuggestions(String body) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : body.split("\n", -1)) {
+            String s = line.trim();
+            if (s.startsWith("つぎに:") || s.startsWith("つぎに：")) continue;
+            sb.append(line).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private JSONObject buildRequest(Context ctx, Conversation conv, boolean deep) throws Exception {
         String model = Prefs.model(ctx);
         boolean haiku = model.contains("haiku");
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
-                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + calendarLine(ctx))
+                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + calendarLine(ctx)
+                        + Mem.forPrompt(ctx) + (Prefs.webSearch(ctx) ? searchLine() : ""))
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
 
         JSONArray tools = Tools.definitions(ctx);
@@ -206,7 +264,7 @@ public class Agent {
             tools.put(new JSONObject()
                     .put("type", haiku ? "web_search_20250305" : "web_search_20260318")
                     .put("name", "web_search")
-                    .put("max_uses", 5)
+                    .put("max_uses", deep ? 8 : 4)
                     .put("user_location", new JSONObject()
                             .put("type", "approximate")
                             .put("city", "Okayama")
@@ -215,8 +273,22 @@ public class Agent {
                             .put("timezone", "Asia/Tokyo")));
         }
         body.put("tools", tools);
-        if (!haiku) body.put("output_config", new JSONObject().put("effort", Prefs.effort(ctx)));
+        if (!haiku) body.put("output_config", new JSONObject()
+                .put("effort", deep ? Prefs.searchEffort(ctx) : Prefs.effort(ctx)));
         return body;
+    }
+
+    /** 調べ物のときの構え。Perplexity のように、出典と次の一手まで出す */
+    private static String searchLine() {
+        return "\n\n# 調べ物のやり方\n"
+                + "- 公式サイト・公的機関・メーカーなどの一次情報を優先する。アフィリエイト目的のまとめ記事は根拠にしない\n"
+                + "- 言い切る前に裏を取る。出典は本文のその場に [ドメイン](URL) の形で付ける\n"
+                + "- 「噂・未確定」と「確定情報」を分けて書く\n"
+                + "- 価格は日本円。海外のものは現地価格と概算円、日本で買えるかも書く\n"
+                + "- 良い面だけでなく、弱点・向いていない場合も必ず書く\n"
+                + "- 数字・日付・型番は記憶で言い切らず、調べた結果を使う\n"
+                + "- 最後の行に必ず「つぎに: 質問1 | 質問2 | 質問3」を付ける。"
+                + "本人が次に知りたくなることを、短い質問文で3つ。ボタンとして表示されるので質問だけを書く\n";
     }
 
     private static String nowLine() {
