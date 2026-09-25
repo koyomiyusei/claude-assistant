@@ -65,7 +65,15 @@ public class Rules {
             + "- 聞かれてもいない整理・並べ替え・マーカーの付け直しをしない\n"
             + "- 支払い予定の日付・金額は変えない。消さない\n";
 
+    /**
+     * ルールの出どころは3段。上から順に使う。
+     * 1. Googleカレンダーの【運用ルール】という予定の説明欄（右腕ボード側から書き換えられる・いちばん新しい）
+     * 2. GitHub の rules.md（こちらで管理する写し）
+     * 3. アプリに入っている初期ルール
+     */
     public static String text(Context c) {
+        String fromCal = Cal.rulesFromCalendar(c);
+        if (fromCal != null) return fromCal + "\n（出どころ: カレンダーの【運用ルール】）";
         String saved = c.getSharedPreferences("assistant_rules", Context.MODE_PRIVATE)
                 .getString("text", null);
         return saved == null ? DEFAULT : saved;
@@ -107,8 +115,10 @@ public class Rules {
     /** いつ取り込んだか（設定画面の表示用） */
     public static String state(Context c) {
         android.content.SharedPreferences p = c.getSharedPreferences("assistant_rules", Context.MODE_PRIVATE);
+        if (Cal.rulesFromCalendar(c) != null)
+            return "カレンダーの【運用ルール】を使用中（右腕ボード側から書き換え可）";
         long at = p.getLong("at", 0);
         if (at == 0) return "アプリに入っている初期ルールを使用中";
-        return "GitHub の rules.md を取り込み済み（" + Cal.fmt("M/d H:mm", at) + "）";
+        return "GitHub の rules.md を使用中（取得 " + Cal.fmt("M/d H:mm", at) + "）";
     }
 }

@@ -156,6 +156,35 @@ public class Cal {
         return e;
     }
 
+    /**
+     * タイトルに「運用ルール」を含む予定を探して、その説明欄を返す。
+     * 予定管理のルールはここに置いておけば、カレンダーを触れる人（右腕ボード側のClaudeなど）が
+     * 書き換えるだけでアシスタントの判断が変わる。日付には意味がないので、日付ではなく題名で探す。
+     */
+    public static String rulesFromCalendar(Context c) {
+        if (!canRead(c)) return null;
+        try {
+            String[] proj = {CalendarContract.Events.TITLE, CalendarContract.Events.DESCRIPTION,
+                    CalendarContract.Events.DTSTART};
+            Cursor cur = c.getContentResolver().query(CalendarContract.Events.CONTENT_URI, proj,
+                    CalendarContract.Events.TITLE + " LIKE ? AND " + CalendarContract.Events.DELETED + "=0",
+                    new String[]{"%運用ルール%"}, CalendarContract.Events.DTSTART + " DESC");
+            if (cur == null) return null;
+            String best = null;
+            while (cur.moveToNext()) {
+                String d = cur.getString(1);
+                if (d != null && d.trim().length() > 100) {
+                    best = d.trim();
+                    break;
+                }
+            }
+            cur.close();
+            return best;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
     // ---------------- 書き込み ----------------
 
     /** 時間のある予定 */
