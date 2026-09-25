@@ -76,10 +76,10 @@ public class Conversation {
                 FileOutputStream out = new FileOutputStream(new File(dir, name));
                 out.write(o.toString().getBytes(StandardCharsets.UTF_8));
                 out.close();
+                Chats.add(c, name, null, display);
             } catch (Exception ignored) {
             }
         }
-        trimHistory(c);
         while (messages.length() > 0) messages.remove(0);
         while (display.length() > 0) display.remove(0);
         save(c);
@@ -95,6 +95,7 @@ public class Conversation {
         String q = query.trim();
         int hit = 0;
         for (File f : fs) {
+            if (f.getName().equals("index.json")) continue;
             try {
                 byte[] b = new byte[(int) f.length()];
                 FileInputStream in = new FileInputStream(f);

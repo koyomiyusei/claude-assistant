@@ -41,6 +41,13 @@ public class MainActivity extends Activity implements Tools.Host {
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         head.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        TextView hist = ui.iconButton(this, "🕘", ui.userBubble, ui.text, 40);
+        hist.setContentDescription("会話の履歴");
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(ui.dp(40), ui.dp(40));
+        hp.rightMargin = ui.dp(8);
+        head.addView(hist, hp);
+        hist.setOnClickListener(v -> startActivity(new Intent(this, HistoryActivity.class)));
+
         TextView pic = ui.iconButton(this, "📎", ui.userBubble, ui.text, 40);
         pic.setContentDescription("写真を添える");
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(ui.dp(40), ui.dp(40));
@@ -161,6 +168,21 @@ public class MainActivity extends Activity implements Tools.Host {
         chat.destroy();
     }
 
+    /** アプリ内の音声入力が動かないときの逃げ道：端末標準の音声入力画面を出す */
+    public void voiceFallback() {
+        try {
+            Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "話してください");
+            startActivityForResult(i, 12);
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "キーボードのマイクをお使いください",
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
     /** ギャラリー／カメラから写真を選ぶ */
     private void pickImage() {
         new AlertDialog.Builder(this)
@@ -183,6 +205,12 @@ public class MainActivity extends Activity implements Tools.Host {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (res != RESULT_OK || data == null) return;
+        if (req == 12) {
+            java.util.ArrayList<String> r = data.getStringArrayListExtra(
+                    android.speech.RecognizerIntent.EXTRA_RESULTS);
+            if (r != null && !r.isEmpty()) chat.sendText(r.get(0));
+            return;
+        }
         try {
             android.graphics.Bitmap bmp = null;
             if (req == 10 && data.getData() != null) {

@@ -36,6 +36,8 @@ public class Speech {
     private final Context ctx;
     private SpeechRecognizer rec;
     private boolean listening;
+    private int attempt;          // 何番目の認識サービスを試しているか
+    private boolean gotSpeech;    // 声を拾えたか
 
     public Speech(Context ctx) {
         this.ctx = ctx;
@@ -51,39 +53,70 @@ public class Speech {
 
     /** 自分以外の音声認識サービスを探す。Google のものを優先 */
     public static ComponentName findRecognizer(Context c) {
-        List<ResolveInfo> list = c.getPackageManager().queryIntentServices(
-                new Intent("android.speech.RecognitionService"), 0);
-        ComponentName best = null;
-        for (ResolveInfo ri : list) {
-            if (ri.serviceInfo == null) continue;
-            String pkg = ri.serviceInfo.packageName;
-            if (pkg.equals(c.getPackageName())) continue;
-            ComponentName cn = new ComponentName(pkg, ri.serviceInfo.name);
-            if (pkg.equals("com.google.android.googlequicksearchbox")) return cn;
-            if (best == null || pkg.startsWith("com.google")) best = cn;
+        List<ComponentName> all = recognizers(c);
+        return all.isEmpty() ? null : all.get(0);
+    }
+
+    /** 使える音声認識サービスを、良さそうな順に並べて返す */
+    public static List<ComponentName> recognizers(Context c) {
+        List<ComponentName> google = new ArrayList<>(), others = new ArrayList<>();
+        try {
+            List<ResolveInfo> list = c.getPackageManager().queryIntentServices(
+                    new Intent("android.speech.RecognitionService"), 0);
+            for (ResolveInfo ri : list) {
+                if (ri.serviceInfo == null) continue;
+                String pkg = ri.serviceInfo.packageName;
+                if (pkg.equals(c.getPackageName())) continue;   // 自分の中継は使わない
+                ComponentName cn = new ComponentName(pkg, ri.serviceInfo.name);
+                if (pkg.equals("com.google.android.googlequicksearchbox")) google.add(0, cn);
+                else if (pkg.startsWith("com.google")) google.add(cn);
+                else others.add(cn);
+            }
+        } catch (Throwable ignored) {
         }
-        return best;
+        google.addAll(others);
+        return google;
+    }
+
+    /** 今どれを使うか（設定画面の表示用） */
+    public static String recognizerName(Context c) {
+        ComponentName cn = findRecognizer(c);
+        if (cn == null) return "見つかりません（Googleアプリが要ります）";
+        return cn.getPackageName();
     }
 
     public void start(final Callback cb) {
-        stop();
+        attempt = 0;
+        startWith(cb);
+    }
+
+    private void startWith(final Callback cb) {
+        stopInner();
         if (!hasMicPermission(ctx)) {
             cb.onError("マイクの許可がありません。アプリを開いて許可してください。");
             cb.onEnd();
             return;
         }
-        ComponentName cn = findRecognizer(ctx);
-        if (cn == null) {
+        List<ComponentName> list = recognizers(ctx);
+        if (list.isEmpty()) {
             cb.onError("音声認識サービスが見つかりません（Googleアプリが必要です）");
             cb.onEnd();
             return;
         }
+        if (attempt >= list.size()) {
+            cb.onError("音声入力を開始できませんでした。キーボードのマイクを使ってください");
+            cb.onEnd();
+            return;
+        }
+        ComponentName cn = list.get(attempt);
+        gotSpeech = false;
         rec = SpeechRecognizer.createSpeechRecognizer(ctx, cn);
         rec.setRecognitionListener(new RecognitionListener() {
             public void onReadyForSpeech(Bundle params) {
             }
 
             public void onBeginningOfSpeech() {
+                gotSpeech = true;
             }
 
             public void onRmsChanged(float rmsdB) {
@@ -98,11 +131,24 @@ public class Speech {
 
             public void onError(int error) {
                 listening = false;
+                // 声を拾う前に落ちたときは、別の音声認識サービスで1回だけやり直す
+                boolean startupFail = !gotSpeech && (error == SpeechRecognizer.ERROR_CLIENT
+                        || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                        || error == SpeechRecognizer.ERROR_SERVER
+                        || error == 12 /* LANGUAGE_NOT_SUPPORTED */
+                        || error == 13 /* LANGUAGE_UNAVAILABLE */
+                        || error == 14 /* SERVER_DISCONNECTED */);
+                if (startupFail && attempt + 1 < recognizers(ctx).size()) {
+                    attempt++;
+                    new android.os.Handler(android.os.Looper.getMainLooper())
+                            .postDelayed(() -> startWith(cb), 250);
+                    return;
+                }
                 String m;
                 switch (error) {
                     case SpeechRecognizer.ERROR_NO_MATCH:
                     case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                        m = null; // 何も喋らなかっただけ
+                        m = "聞き取れませんでした。もう一度🎤を押してください";
                         break;
                     case SpeechRecognizer.ERROR_NETWORK:
                     case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
@@ -114,8 +160,11 @@ public class Speech {
                     case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
                         m = "音声認識：使用中です。もう一度押してください";
                         break;
+                    case SpeechRecognizer.ERROR_AUDIO:
+                        m = "マイクを使えませんでした（他のアプリが使用中かも）";
+                        break;
                     default:
-                        m = "音声認識エラー（" + error + "）";
+                        m = "音声認識エラー（" + error + "）。キーボードのマイクも使えます";
                 }
                 if (m != null) cb.onError(m);
                 cb.onEnd();
@@ -147,6 +196,11 @@ public class Speech {
     }
 
     public void stop() {
+        attempt = 0;
+        stopInner();
+    }
+
+    private void stopInner() {
         listening = false;
         if (rec != null) {
             try {

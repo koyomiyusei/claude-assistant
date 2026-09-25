@@ -177,6 +177,12 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         return agent.isRunning();
     }
 
+    /** 端末標準の音声入力から返ってきた文字を入力欄へ */
+    public void setInput(String t) {
+        input.setText(t);
+        input.setSelection(input.getText().length());
+    }
+
     public void sendText(String t) {
         input.setText(t);
         submit();
@@ -226,7 +232,12 @@ public class ChatView extends LinearLayout implements Agent.Ui {
             }
 
             public void onError(String message) {
-                Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show();
+                Toast.makeText(ctx, message, Toast.LENGTH_LONG).show();
+                onStatus(null);
+                // アプリ本体なら、端末標準の音声入力画面に逃がす
+                if (ctx instanceof MainActivity && message.contains("開始できませんでした")) {
+                    ((MainActivity) ctx).voiceFallback();
+                }
             }
 
             public void onLevel(float rmsDb) {

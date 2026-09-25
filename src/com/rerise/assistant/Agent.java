@@ -270,8 +270,8 @@ public class Agent {
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
-                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + calendarLine(ctx)
-                        + Mem.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
+                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + memoryLine() + calendarLine(ctx)
+                        + Mem.forPrompt(ctx) + Chats.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
                         + Screen.forPrompt())
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
 
@@ -292,6 +292,16 @@ public class Agent {
         if (!haiku) body.put("output_config", new JSONObject()
                 .put("effort", deep ? Prefs.searchEffort(ctx) : Prefs.effort(ctx)));
         return body;
+    }
+
+    /** 覚えるときの書き方 */
+    private static String memoryLine() {
+        return "\n\n# 覚えるときの決まり\n"
+                + "- 「覚えといて」と言われたら remember を使う。その場の言い方のままではなく、"
+                + "日付・場所・相手を具体に直した一文にする（例:「今日の夜、営業所に行く」→「9/25(木)の夜に営業所へ行く」）\n"
+                + "- 「今の内容を覚えといて」と言われたら、直前までのやり取りを2〜4行に要約して remember する\n"
+                + "- 予定・タスクとして残すべきものは、記憶ではなくカレンダーに入れるか聞く\n"
+                + "- 頼まれていないことは覚えない\n";
     }
 
     private static String nowLine() {

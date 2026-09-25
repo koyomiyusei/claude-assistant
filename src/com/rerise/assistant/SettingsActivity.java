@@ -125,6 +125,24 @@ public class SettingsActivity extends Activity {
         openDefault.setOnClickListener(v -> openDefaultAppsSettings());
         openSide.setOnClickListener(v -> openSideKeySettings());
         micState = note("");
+        LinearLayout vr = row();
+        Button vtest = ui.pill(this, "音声入力をためす", false);
+        vr.addView(vtest);
+        box.addView(vr);
+        vtest.setOnClickListener(v -> {
+            Toast.makeText(this, "使う音声認識: " + Speech.recognizerName(this), Toast.LENGTH_LONG).show();
+            if (!Speech.hasMicPermission(this)) {
+                requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+                return;
+            }
+            try {
+                startActivity(new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                        .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ja-JP"));
+            } catch (Exception e) {
+                Toast.makeText(this, "端末の音声入力画面が見つかりません", Toast.LENGTH_LONG).show();
+            }
+        });
+
         LinearLayout pr = row();
         Button mic = ui.pill(this, "マイクを許可", false);
         Button calp = ui.pill(this, "カレンダーを許可", false);
@@ -255,9 +273,17 @@ public class SettingsActivity extends Activity {
         section("覚えていること");
         note("「覚えといて」と言ったこと、吹き出しの長押しで足したものがここに入ります。"
                 + "📌 は必ず毎回読み込みます。現在 " + Mem.count(this) + " 件。");
+        LinearLayout mr = row();
         Button memList = ui.pill(this, "記憶を見る・消す", false);
-        box.addView(memList);
+        Button histBtn = ui.pill(this, "会話の履歴", false);
+        mr.addView(memList);
+        addGap(mr);
+        mr.addView(histBtn);
+        box.addView(mr);
         memList.setOnClickListener(v -> showMemories());
+        histBtn.setOnClickListener(v -> startActivity(new Intent(this, HistoryActivity.class)));
+        note("会話は＋を押した時点で履歴に入ります。📌 を付けた会話は消えず、毎回の会話で踏まえます（現在 "
+                + Chats.pinnedCount(this) + " 本をピン留め中）。");
 
         // ---- 最後のエラー ----
         String crash = App.last(this);
@@ -327,6 +353,7 @@ public class SettingsActivity extends Activity {
         }
         assistState.setText(held ? "✅ デフォルトのアシスタントに設定されています" : "⚪ まだデフォルトのアシスタントではありません");
         String m = Speech.hasMicPermission(this) ? "✅ マイク許可済み" : "⚪ マイク未許可（音声入力に必要）";
+        m += "　／　音声認識: " + Speech.recognizerName(this);
         m += Cal.canWrite(this) ? "　／　✅ カレンダー許可済み"
                 : (Cal.canRead(this) ? "　／　△ カレンダーは読み取りのみ" : "　／　⚪ カレンダー未許可（予定の確認・登録に必要）");
         if (Cal.canRead(this)) {

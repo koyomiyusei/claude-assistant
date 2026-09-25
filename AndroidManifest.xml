@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rerise.assistant"
-    android:versionCode="10"
-    android:versionName="1.0">
+    android:versionCode="11"
+    android:versionName="1.1">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
 
@@ -70,6 +70,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".HistoryActivity"
+            android:label="会話の履歴"
+            android:exported="false" />
 
         <activity
             android:name=".SettingsActivity"
