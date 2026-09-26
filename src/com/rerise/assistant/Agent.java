@@ -217,8 +217,16 @@ public class Agent {
                     });
                 }
                 JSONObject tr = new JSONObject().put("type", "tool_result")
-                        .put("tool_use_id", b.optString("id"))
-                        .put("content", o.result);
+                        .put("tool_use_id", b.optString("id"));
+                if (o.imageB64 != null) {
+                    tr.put("content", new JSONArray()
+                            .put(new JSONObject().put("type", "text").put("text", o.result))
+                            .put(new JSONObject().put("type", "image").put("source", new JSONObject()
+                                    .put("type", "base64").put("media_type", "image/jpeg")
+                                    .put("data", o.imageB64))));
+                } else {
+                    tr.put("content", o.result);
+                }
                 if (o.isError) tr.put("is_error", true);
                 results.put(tr);
             }

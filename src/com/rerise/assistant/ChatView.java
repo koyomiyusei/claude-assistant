@@ -146,6 +146,37 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         scrollToEnd();
     }
 
+    /** 画面の文脈に合わせた入口ボタン（サイドキーで開いたとき） */
+    public void showScreenShortcuts() {
+        if (!Screen.has() && !Screen.hasShot()) return;
+        String app = Screen.label();
+        java.util.List<String> qs = new java.util.ArrayList<>();
+        String low = app == null ? "" : app.toLowerCase(java.util.Locale.JAPAN);
+        boolean msg = low.contains("line") || low.contains("メッセージ") || low.contains("gmail")
+                || low.contains("メール") || low.contains("chat") || low.contains("slack")
+                || low.contains("messages") || low.contains("sms");
+        boolean web = low.contains("chrome") || low.contains("browser") || low.contains("ブラウザ")
+                || !Screen.url().isEmpty();
+        if (msg) {
+            qs.add("この内容に返信文を作って");
+            qs.add("要点だけ教えて");
+            qs.add("丁寧な断り文にして");
+        } else if (web) {
+            qs.add("このページを要約して");
+            qs.add("怪しい点・注意点はある？");
+            qs.add("値段と条件だけ抜き出して");
+        } else {
+            qs.add("この画面は何？どうすればいい？");
+            qs.add("要点だけ教えて");
+            qs.add("この内容をメモに残して");
+        }
+        TextView head = ui.label(ctx, "画面: " + app + (Screen.url().isEmpty() ? "" : " / " + Screen.url()),
+                12, ui.sub);
+        head.setPadding(ui.dp(4), ui.dp(4), ui.dp(4), 0);
+        list.addView(head);
+        onSuggestions(qs);
+    }
+
     public void focusInput() {
         input.requestFocus();
     }

@@ -65,6 +65,7 @@ public class Tools {
         public final String result;   // Claude に返す文字列
         public final boolean isError;
         public final String card;     // 画面に出す実行記録（null なら出さない）
+        public String imageB64;       // 画像も返すとき（スクリーンショットなど）
 
         Outcome(String result, boolean isError, String card) {
             this.result = result;
@@ -239,8 +240,11 @@ public class Tools {
 
         if (Screen.has()) {
             a.put(tool("read_screen",
-                    "呼び出す直前に開いていた画面の文字を読む。「このLINEに返信文」「この画面を要約」などで使う。",
-                    props()));
+                    "呼び出す直前に開いていた画面を読む。どのアプリだったか（LINE／Gmail／Chrome など）と、"
+                            + "ブラウザなら見ていたページも分かる。文字だけでなく、include_image=true にすると"
+                            + "その画面のスクリーンショットも見られる（表示の崩れ・エラー画面・ボタンの位置・写真の中身を見るとき）。",
+                    props(new Object[]{"include_image", new JSONObject().put("type", "boolean")
+                            .put("description", "画面の見た目も見たいなら true")})));
         }
         if (NotifyService.enabled(c)) {
             a.put(tool("list_notifications",
@@ -293,7 +297,7 @@ public class Tools {
         sb.append(Device.canLocate(c) ? "・今いる場所／周辺検索／経路案内\n" : "・地図・経路案内（現在地は未許可）\n");
         sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
         sb.append(NotifyService.enabled(c) ? "・通知をまとめて読む\n" : "・通知の読み取り … 未許可\n");
-        sb.append("・直前に見ていた画面を読む（サイドキーから呼んだとき）\n");
+        sb.append("・直前に見ていた画面を読む（アプリ名・ページURL・文字＋スクリーンショット）\n");
         sb.append("・写真を見せて聞く（📎から）\n");
         sb.append("・読み上げ／連続会話（🔊）\n");
         sb.append("・覚えておく／忘れる（記憶 ").append(Mem.count(c)).append("件）\n");
@@ -404,8 +408,19 @@ public class Tools {
                 case "open_maps":
                     return openMaps(h, in);
                 case "read_screen": {
-                    if (!Screen.has()) return Outcome.err("直前の画面が取れていません（サイドキーから呼ぶと読めます）");
-                    return Outcome.ok("アプリ: " + Screen.app() + "\n----\n" + Screen.text(), null);
+                    boolean img = in.optBoolean("include_image", false);
+                    if (!Screen.has() && !Screen.hasShot())
+                        return Outcome.err("直前の画面が取れていません（サイドキーから呼ぶと読めます）");
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("アプリ: ").append(Screen.label());
+                    if (!Screen.app().isEmpty()) sb.append("（").append(Screen.app()).append("）");
+                    sb.append("\n");
+                    if (!Screen.url().isEmpty()) sb.append("ページ: ").append(Screen.url()).append("\n");
+                    sb.append("----\n").append(Screen.has() ? Screen.text() : "（画面の文字は取れませんでした）");
+                    Outcome o = Outcome.ok(sb.toString(), null);
+                    if (img && Screen.hasShot()) o.imageB64 = Screen.shot();
+                    else if (img) o.imageB64 = null;
+                    return o;
                 }
                 case "list_notifications": {
                     if (!NotifyService.enabled(h.context()))

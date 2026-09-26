@@ -100,7 +100,18 @@ public class AssistSession extends VoiceInteractionSession implements Tools.Host
     @Override
     public void onHandleAssist(android.service.voice.VoiceInteractionSession.AssistState state) {
         try {
-            if (state != null) Screen.capture(state.getAssistStructure());
+            if (state == null) return;
+            Screen.capture(state.getAssistStructure());
+            Screen.capture(state.getAssistContent(), getContext());
+            Screen.resolveLabel(getContext());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    public void onHandleScreenshot(android.graphics.Bitmap screenshot) {
+        try {
+            Screen.capture(screenshot);
         } catch (Throwable ignored) {
         }
     }
@@ -114,6 +125,9 @@ public class AssistSession extends VoiceInteractionSession implements Tools.Host
             launchSelf(new Intent(getContext(), SettingsActivity.class));
             hide();
             return;
+        }
+        if (Conversation.get(getContext()).display.length() == 0 || !chat.isBusy()) {
+            chat.showScreenShortcuts();
         }
         if (Prefs.autoVoice(getContext()) && !chat.isBusy()) {
             chat.post(() -> chat.startVoice());

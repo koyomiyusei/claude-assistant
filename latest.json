@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "1.1",
+  "versionCode": 12,
+  "versionName": "1.2",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "音声入力の修正（別の認識エンジンへ自動で切替＋端末標準への逃げ道＋エラー表示）／会話の履歴画面（📌ピン留めした会話は常に踏まえる・20本保存）／覚え方の改善（日付や相手を具体に直して記憶）"
+  "notes": "画面の読み取りを強化：どのアプリか（LINE／Gmail／Chromeなど）とページのURLも分かるように。見た目の話のときはスクリーンショットも見られる（設定でスクショ利用をオンに）"
 }
