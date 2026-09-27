@@ -169,6 +169,14 @@ public class SettingsActivity extends Activity {
         final Switch autoVoice = toggle("呼び出したらすぐ音声入力を始める", Prefs.autoVoice(this));
         autoVoice.setOnCheckedChangeListener((v, on) -> Prefs.setAutoVoice(this, on));
 
+        final Switch autoSend = toggle("喋り終わったら自動で送る（オフなら入力欄に入れて止まる）", Prefs.voiceAutoSend(this));
+        autoSend.setOnCheckedChangeListener((v, on) -> Prefs.setVoiceAutoSend(this, on));
+
+        note("喋り終わったと判断するまでの間。途中で切られるなら長めに");
+        RadioGroup sil = radios(Prefs.SILENCE, String.valueOf(Prefs.silenceMs(this)));
+        sil.setOnCheckedChangeListener((g, id) ->
+                Prefs.setSilenceMs(this, Long.parseLong(Prefs.SILENCE[id - 1][0])));
+
         // ---- モデル ----
         section("モデル");
         RadioGroup models = radios(Prefs.MODELS, Prefs.model(this));

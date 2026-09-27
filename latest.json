@@ -1,6 +1,6 @@
 {
-  "versionCode": 17,
-  "versionName": "1.7",
+  "versionCode": 18,
+  "versionName": "1.8",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "言い直し・指示語を前の会話から読み取るように（「夜の8時にして」で直前の予定を変更）。処理中でも補足を送れるようになり、その内容込みで答え直します"
+  "notes": "音声入力：途中で切れないよう無音の待ち時間を2.5秒に（設定で変更可・自動送信オフも可）、聞き間違いは他候補と文脈で補正／共有メニューから受け取り／Google Keepへ送る／他アプリへ共有／通知から直接返信／ホーム画面ウィジェット"
 }

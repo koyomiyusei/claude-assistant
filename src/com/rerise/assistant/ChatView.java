@@ -43,6 +43,7 @@ public class ChatView extends LinearLayout implements Agent.Ui {
     private String pendingImageType;
     private TextView streaming;         // 今流れている assistant の吹き出し
     private boolean voiceStarted;       // 今回の入力が音声から始まったか（そのまま送信する）
+    private java.util.List<String> voiceAlts;   // 音声認識の他の候補（聞き間違い対策）
 
     public ChatView(Context c, Tools.Host host, boolean compact) {
         super(c);
@@ -228,6 +229,13 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         input.setSelection(input.getText().length());
     }
 
+    /** 共有から受け取ったときの案内 */
+    public void shareHint() {
+        addBubble("card", "📥 受け取りました。このあとに「要約して」「返信文にして」など、してほしいことを足して送ってください");
+        scrollToEnd();
+        input.requestFocus();
+    }
+
     public void sendText(String t) {
         input.setText(t);
         submit();
@@ -253,6 +261,8 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         streaming = null;
         send.setText("■");
         agent.setForceSearch(forceSearch);
+        agent.setVoiceAlternatives(voiceAlts);
+        voiceAlts = null;
         agent.send(t, pendingImage, pendingImageType);
         if (forceSearch) {
             forceSearch = false;
@@ -287,9 +297,14 @@ public class ChatView extends LinearLayout implements Agent.Ui {
                 input.setSelection(input.getText().length());
             }
 
-            public void onFinal(String text) {
+            public void onFinal(String text, java.util.List<String> alts) {
                 input.setText(text);
-                if (voiceStarted) submit();
+                voiceAlts = (alts == null || alts.isEmpty()) ? null : new java.util.ArrayList<>(alts);
+                if (voiceStarted && Prefs.voiceAutoSend(ctx)) submit();
+                else {
+                    input.setSelection(input.getText().length());
+                    onStatus("聞き取りました。直して送れます");
+                }
             }
 
             public void onError(String message) {

@@ -125,6 +125,23 @@ public class MainActivity extends Activity implements Tools.Host {
 
     private void handleIntent(Intent i) {
         if (i == null) return;
+        // 他アプリの「共有」から来たとき
+        if (Intent.ACTION_SEND.equals(i.getAction())) {
+            String type = i.getType() == null ? "" : i.getType();
+            if (type.startsWith("text/")) {
+                String t = i.getStringExtra(Intent.EXTRA_TEXT);
+                String sub = i.getStringExtra(Intent.EXTRA_SUBJECT);
+                if (t != null && !t.trim().isEmpty()) {
+                    chat.setInput((sub == null || sub.isEmpty() ? "" : sub + "\n") + t);
+                    chat.shareHint();
+                }
+            } else if (type.startsWith("image/")) {
+                android.net.Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM);
+                if (u != null) loadImage(u);
+            }
+            i.setAction(null);
+            return;
+        }
         if (i.getBooleanExtra(EXTRA_VOICE, false)) {
             i.removeExtra(EXTRA_VOICE);
             chat.post(() -> chat.startVoice());
@@ -166,6 +183,29 @@ public class MainActivity extends Activity implements Tools.Host {
     protected void onDestroy() {
         super.onDestroy();
         chat.destroy();
+    }
+
+    /** 画像を読み込んで添える */
+    private void loadImage(android.net.Uri uri) {
+        try {
+            java.io.InputStream in = getContentResolver().openInputStream(uri);
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in);
+            if (in != null) in.close();
+            if (bmp == null) return;
+            int max = 1280;
+            if (bmp.getWidth() > max || bmp.getHeight() > max) {
+                float sc = Math.min(max / (float) bmp.getWidth(), max / (float) bmp.getHeight());
+                bmp = android.graphics.Bitmap.createScaledBitmap(bmp,
+                        Math.round(bmp.getWidth() * sc), Math.round(bmp.getHeight() * sc), true);
+            }
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, bos);
+            chat.attachImage(android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP),
+                    "image/jpeg");
+        } catch (Throwable e) {
+            App.save(this, "loadImage", e);
+            android.widget.Toast.makeText(this, "写真を読めませんでした", android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     /** アプリ内の音声入力が動かないときの逃げ道：端末標準の音声入力画面を出す */
@@ -214,9 +254,8 @@ public class MainActivity extends Activity implements Tools.Host {
         try {
             android.graphics.Bitmap bmp = null;
             if (req == 10 && data.getData() != null) {
-                java.io.InputStream in = getContentResolver().openInputStream(data.getData());
-                bmp = android.graphics.BitmapFactory.decodeStream(in);
-                if (in != null) in.close();
+                loadImage(data.getData());
+                return;
             } else if (req == 11 && data.getExtras() != null) {
                 bmp = (android.graphics.Bitmap) data.getExtras().get("data");
             }

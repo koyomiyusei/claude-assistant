@@ -181,6 +181,30 @@ public class Prefs {
         sp(c).edit().putBoolean("web_search", v).apply();
     }
 
+    /** 喋り終わったと判断するまでの無音の長さ（ミリ秒） */
+    public static long silenceMs(Context c) {
+        return sp(c).getLong("silence_ms", 2500L);
+    }
+
+    public static void setSilenceMs(Context c, long v) {
+        sp(c).edit().putLong("silence_ms", v).apply();
+    }
+
+    public static final String[][] SILENCE = {
+            {"1500", "短め（1.5秒）"},
+            {"2500", "ふつう（2.5秒）"},
+            {"4000", "長め（4秒・ゆっくり話す人向け）"},
+    };
+
+    /** 喋り終わったら自動で送るか。オフなら文字を入力欄に入れて止める */
+    public static boolean voiceAutoSend(Context c) {
+        return sp(c).getBoolean("voice_auto_send", true);
+    }
+
+    public static void setVoiceAutoSend(Context c, boolean v) {
+        sp(c).edit().putBoolean("voice_auto_send", v).apply();
+    }
+
     /** サイドキーで呼んだとき、すぐ音声入力を始めるか */
     public static boolean autoVoice(Context c) {
         return sp(c).getBoolean("auto_voice", true);

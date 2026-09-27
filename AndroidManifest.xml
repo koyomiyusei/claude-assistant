@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.rerise.assistant"
-    android:versionCode="17"
-    android:versionName="1.7">
+    android:versionCode="18"
+    android:versionName="1.8">
 
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="35" />
 
@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
+        <package android:name="com.google.android.keep" />
         <!-- アプリ一覧・電話・SMS・地図を開くため -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -64,6 +65,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 他アプリの「共有」から受け取る -->
+            <intent-filter android:label="@string/share_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="@string/share_label">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+
             <!-- 古い形のアシスト呼び出しにも応じる -->
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
@@ -100,6 +113,18 @@
             android:name=".AssistService$SessionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"
             android:exported="true" />
+
+        <!-- ホーム画面ウィジェット（タップで音声入力） -->
+        <receiver
+            android:name=".Widget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info" />
+        </receiver>
 
         <!-- 通知を読む（本人が 設定→通知へのアクセス で許可したときだけ動く） -->
         <service

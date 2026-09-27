@@ -288,10 +288,35 @@ public class Tools {
                             .put("description", "画面の見た目も見たいなら true")})));
         }
         if (NotifyService.enabled(c)) {
+            a.put(tool("reply_notification",
+                    "通知から直接返信する（LINE・メッセージなど返信欄のある通知）。"
+                            + "先に list_notifications で通知を読み、どれに返すかを key で指定する。送信前に本人に確認が出る。",
+                    props(
+                            prop("key", "string", "list_notifications が返した key"),
+                            prop("text", "string", "送る本文")
+                    ), "key", "text"));
+
             a.put(tool("list_notifications",
                     "今スマホに出ている通知を新しい順に読む。「未読まとめて」「何か来てる？」で使う。",
                     props(prop("limit", "integer", "最大件数（省略時20）"))));
         }
+
+        a.put(tool("share_text",
+                "他のアプリへテキストを渡す（共有メニュー）。送り先を選ぶ画面が出る。"
+                        + "LINEに送る・メールに貼る・他のメモアプリに入れる、などに使う。",
+                props(
+                        prop("text", "string", "渡す本文"),
+                        prop("title", "string", "件名（任意）")
+                ), "text"));
+
+        a.put(tool("send_to_keep",
+                "Google Keep に新しいメモとして渡す。Keepが開いて本文が入った状態になるので、保存は本人が押す。"
+                        + "自分のメモは基本カレンダーの【メモ】に入れる方が後から探せるので、"
+                        + "Keepを指定されたときだけ使う。",
+                props(
+                        prop("text", "string", "メモの本文"),
+                        prop("title", "string", "タイトル（任意）")
+                ), "text"));
 
         a.put(tool("remember",
                 "本人が「覚えといて」と言ったことを端末に保存する。次からの会話の前提として毎回読み込まれる。"
@@ -337,7 +362,8 @@ public class Tools {
         sb.append("・アプリを開く／ライト／マナーモード／音量\n");
         sb.append(Device.canLocate(c) ? "・今いる場所／周辺検索／経路案内\n" : "・地図・経路案内（現在地は未許可）\n");
         sb.append(Prefs.webSearch(c) ? "・Web検索\n" : "・Web検索 … オフ\n");
-        sb.append(NotifyService.enabled(c) ? "・通知をまとめて読む\n" : "・通知の読み取り … 未許可\n");
+        sb.append(NotifyService.enabled(c) ? "・通知をまとめて読む／通知から返信（確認あり）\n" : "・通知の読み取り・返信 … 未許可\n");
+        sb.append("・他アプリへ共有／Google Keep にメモを渡す\n");
         sb.append("・直前に見ていた画面を読む（アプリ名・ページURL・文字＋スクリーンショット）\n");
         sb.append("・写真を見せて聞く（📎から）\n");
         sb.append("・読み上げ／連続会話（🔊）\n");
@@ -402,6 +428,12 @@ public class Tools {
                 return "画面を読んでいます…";
             case "list_notifications":
                 return "通知を見ています…";
+            case "reply_notification":
+                return "通知に返信しています…";
+            case "share_text":
+                return "共有先を開いています…";
+            case "send_to_keep":
+                return "Keepに渡しています…";
             case "remember":
                 return "覚えています…";
             case "forget":
@@ -525,9 +557,45 @@ public class Tools {
                     StringBuilder sb = new StringBuilder();
                     for (NotifyService.Item n : ns) {
                         sb.append("- [").append(n.app).append("] ").append(Cal.fmt("H:mm", n.when)).append(" ")
-                                .append(n.title).append(n.text.isEmpty() ? "" : " / " + n.text).append("\n");
+                                .append(n.title).append(n.text.isEmpty() ? "" : " / " + n.text);
+                        if (n.canReply) sb.append("  （返信可 key=").append(n.key).append("）");
+                        sb.append("\n");
                     }
                     return Outcome.ok(sb.toString(), null);
+                }
+                case "reply_notification": {
+                    String key = in.getString("key");
+                    String text = in.getString("text");
+                    if (!ask(h, "この通知に返信します。\n\n" + text + "\n\n送っていいですか？"))
+                        return Outcome.ok("本人がキャンセルしました。送っていません。", "✋ 返信をやめました");
+                    String err = NotifyService.reply(h.context(), key, text);
+                    if (err != null) return Outcome.err(err);
+                    return Outcome.ok("返信しました。", "✉ 通知から返信: " + (text.length() > 30 ? text.substring(0, 30) + "…" : text));
+                }
+                case "share_text": {
+                    String text = in.getString("text");
+                    Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(Intent.EXTRA_TEXT, text)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    String title = in.optString("title", "");
+                    if (!title.isEmpty()) i.putExtra(Intent.EXTRA_SUBJECT, title);
+                    h.launch(Intent.createChooser(i, "送り先を選ぶ").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    return Outcome.ok("共有先を選ぶ画面を開きました。", "📤 共有");
+                }
+                case "send_to_keep": {
+                    String text = in.getString("text");
+                    String title = in.optString("title", "");
+                    Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .setPackage("com.google.android.keep")
+                            .putExtra(Intent.EXTRA_TEXT, text)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (!title.isEmpty()) i.putExtra(Intent.EXTRA_SUBJECT, title);
+                    try {
+                        h.launch(i);
+                    } catch (Exception e) {
+                        return Outcome.err("Google Keep が見つかりませんでした。");
+                    }
+                    return Outcome.ok("Keepを開きました。保存ボタンは本人が押します。", "📝 Keepへ");
                 }
                 case "remember": {
                     String t = in.getString("text").trim();

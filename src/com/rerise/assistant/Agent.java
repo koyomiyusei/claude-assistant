@@ -44,6 +44,7 @@ public class Agent {
     private volatile boolean usedSearch;
     private volatile boolean forceSearch;   // 🔎ボタンで「必ず調べる」を指定されたとき
     private volatile String followUp;       // 走っている最中に足された補足
+    private volatile java.util.List<String> voiceAlts;
 
     public Agent(Tools.Host host, Ui ui) {
         this.host = host;
@@ -67,6 +68,11 @@ public class Agent {
         forceSearch = v;
     }
 
+    /** 音声認識の他候補。聞き間違いを文脈で直してもらうために渡す */
+    public void setVoiceAlternatives(java.util.List<String> alts) {
+        voiceAlts = (alts == null || alts.isEmpty()) ? null : new java.util.ArrayList<>(alts);
+    }
+
     /** 処理中に送られた補足。いまの往復を中断し、補足を足してやり直す */
     public boolean addFollowUp(String text) {
         if (!running || text == null || text.trim().isEmpty()) return false;
@@ -86,15 +92,27 @@ public class Agent {
         final Context ctx = host.context().getApplicationContext();
         final Conversation conv = Conversation.get(ctx);
         try {
+            String body = userText;
+            if (voiceAlts != null) {
+                StringBuilder sb = new StringBuilder(userText);
+                sb.append("\n\n（音声入力です。聞き取りの他の候補: ");
+                for (int i = 0; i < voiceAlts.size(); i++) {
+                    if (i > 0) sb.append(" / ");
+                    sb.append(voiceAlts.get(i));
+                }
+                sb.append("。文脈に合う方で解釈してよい。どれも変なら聞き返す）");
+                body = sb.toString();
+                voiceAlts = null;
+            }
             if (imageB64 == null) {
-                conv.messages.put(new JSONObject().put("role", "user").put("content", userText));
+                conv.messages.put(new JSONObject().put("role", "user").put("content", body));
             } else {
                 JSONArray blocks = new JSONArray()
                         .put(new JSONObject().put("type", "image").put("source", new JSONObject()
                                 .put("type", "base64").put("media_type", mediaType == null ? "image/jpeg" : mediaType)
                                 .put("data", imageB64)))
                         .put(new JSONObject().put("type", "text")
-                                .put("text", userText.isEmpty() ? "この写真について教えて" : userText));
+                                .put("text", body.isEmpty() ? "この写真について教えて" : body));
                 conv.messages.put(new JSONObject().put("role", "user").put("content", blocks));
             }
         } catch (Exception ignored) {

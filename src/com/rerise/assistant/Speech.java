@@ -24,7 +24,8 @@ public class Speech {
     public interface Callback {
         void onPartial(String text);
 
-        void onFinal(String text);
+        /** 確定した文字。alts には他の候補（聞き間違いを文脈で直すのに使う） */
+        void onFinal(String text, java.util.List<String> alts);
 
         void onError(String message);
 
@@ -173,7 +174,14 @@ public class Speech {
             public void onResults(Bundle results) {
                 listening = false;
                 ArrayList<String> r = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (r != null && !r.isEmpty() && !r.get(0).trim().isEmpty()) cb.onFinal(r.get(0));
+                if (r != null && !r.isEmpty() && !r.get(0).trim().isEmpty()) {
+                    java.util.List<String> alts = new ArrayList<>();
+                    for (int i = 1; i < r.size() && i < 4; i++) {
+                        String a = r.get(i) == null ? "" : r.get(i).trim();
+                        if (!a.isEmpty() && !a.equals(r.get(0))) alts.add(a);
+                    }
+                    cb.onFinal(r.get(0), alts);
+                }
                 cb.onEnd();
             }
 
@@ -190,7 +198,12 @@ public class Speech {
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP")
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.getPackageName())
-                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L);
+                .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4)
+                .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+                // 喋り終わったと判断するまでの間。短いと言い終わる前に切れる
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, Prefs.silenceMs(ctx))
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, Prefs.silenceMs(ctx))
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 4000L);
         listening = true;
         rec.startListening(i);
     }
