@@ -99,6 +99,29 @@ public class Tools {
                                 .put("items", new JSONObject().put("type", "integer"))}
                 ), "hour", "minute"));
 
+        a.put(tool("show_alarms",
+                "時計アプリのアラーム一覧を開く。アラームの削除・編集はAndroidに機能が無いので、"
+                        + "「消して」「変更して」と言われたらこれで一覧を開き、どれを消すか本人に伝える。",
+                props()));
+
+        a.put(tool("dismiss_alarm",
+                "鳴っているアラーム、またはこの先のアラームを1つ解除（オフに）する。削除ではない。"
+                        + "mode=next なら次のアラーム、mode=time なら時刻で指定、mode=label ならラベルで指定。",
+                props(
+                        prop("mode", "string", "next / time / label（省略時 next）"),
+                        prop("hour", "integer", "時（mode=time のとき）"),
+                        prop("minute", "integer", "分（mode=time のとき）"),
+                        prop("label", "string", "ラベル（mode=label のとき）")
+                )));
+
+        a.put(tool("snooze_alarm",
+                "鳴っているアラームをスヌーズする。",
+                props(prop("minutes", "integer", "何分後か（省略時は時計アプリの既定）"))));
+
+        a.put(tool("dismiss_timer",
+                "鳴っているタイマーを止める。",
+                props()));
+
         a.put(tool("set_timer",
                 "端末の時計アプリでタイマーを開始する。「3分計って」など。",
                 props(
@@ -276,7 +299,7 @@ public class Tools {
     /** 設定画面に出す「できること」一覧。許可の状態で増減する */
     public static String summary(Context c) {
         StringBuilder sb = new StringBuilder();
-        sb.append("・アラーム／タイマー\n");
+        sb.append("・アラーム／タイマー（解除・スヌーズ・一覧を開く。削除はAndroid側に機能が無く不可）\n");
         sb.append("・クリップボードにコピー\n");
         if (Cal.canRead(c)) {
             sb.append("・予定とタスクの確認（").append(Cal.calendarNames(c)).append("）\n");
@@ -312,6 +335,14 @@ public class Tools {
                 return "アラームを設定しています…";
             case "set_timer":
                 return "タイマーを準備しています…";
+            case "show_alarms":
+                return "アラーム一覧を開いています…";
+            case "dismiss_alarm":
+                return "アラームを解除しています…";
+            case "snooze_alarm":
+                return "スヌーズしています…";
+            case "dismiss_timer":
+                return "タイマーを止めています…";
             case "copy_to_clipboard":
                 return "コピーしています…";
             case "list_events":
@@ -371,6 +402,47 @@ public class Tools {
                     return setAlarm(h, in);
                 case "set_timer":
                     return setTimer(h, in);
+                case "show_alarms": {
+                    h.launch(new Intent(AlarmClock.ACTION_SHOW_ALARMS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    return Outcome.ok("時計アプリのアラーム一覧を開きました。"
+                            + "Androidにはアラームを消す機能が用意されていないので、削除は一覧から本人が行う必要があります。",
+                            "⏰ アラーム一覧");
+                }
+                case "dismiss_alarm": {
+                    String mode = in.optString("mode", "next");
+                    Intent i = new Intent(AlarmClock.ACTION_DISMISS_ALARM)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    String what;
+                    if (mode.startsWith("time")) {
+                        i.putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
+                                .putExtra(AlarmClock.EXTRA_HOUR, in.getInt("hour"))
+                                .putExtra(AlarmClock.EXTRA_MINUTES, in.optInt("minute", 0));
+                        what = String.format(java.util.Locale.JAPAN, "%d:%02d", in.getInt("hour"), in.optInt("minute", 0));
+                    } else if (mode.startsWith("label")) {
+                        i.putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_LABEL)
+                                .putExtra(AlarmClock.EXTRA_MESSAGE, in.getString("label"));
+                        what = "「" + in.getString("label") + "」";
+                    } else {
+                        i.putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_NEXT);
+                        what = "次のアラーム";
+                    }
+                    h.launch(i);
+                    return Outcome.ok(what + " の解除を時計アプリに頼みました（オフにするだけで、削除はされません）。",
+                            "⏰ 解除: " + what);
+                }
+                case "snooze_alarm": {
+                    Intent i = new Intent(AlarmClock.ACTION_SNOOZE_ALARM)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (in.has("minutes")) i.putExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, in.getInt("minutes"));
+                    h.launch(i);
+                    return Outcome.ok("スヌーズしました。", "⏰ スヌーズ");
+                }
+                case "dismiss_timer": {
+                    h.launch(new Intent(AlarmClock.ACTION_DISMISS_TIMER)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    return Outcome.ok("タイマーを止めました。", "⏱ 停止");
+                }
                 case "copy_to_clipboard":
                     return copy(h, in);
                 case "list_events":

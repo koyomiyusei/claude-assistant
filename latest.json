@@ -1,6 +1,6 @@
 {
-  "versionCode": 12,
-  "versionName": "1.2",
+  "versionCode": 13,
+  "versionName": "1.3",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "画面の読み取りを強化：どのアプリか（LINE／Gmail／Chromeなど）とページのURLも分かるように。見た目の話のときはスクリーンショットも見られる（設定でスクショ利用をオンに）"
+  "notes": "アラームの解除・スヌーズ・一覧を開く、タイマー停止に対応（削除はAndroidに機能が無いため一覧を開いて案内します）"
 }
