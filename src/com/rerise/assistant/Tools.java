@@ -88,7 +88,8 @@ public class Tools {
         JSONArray a = new JSONArray();
 
         a.put(tool("set_alarm",
-                "端末の時計アプリにアラームを設定する。「明日6時に起こして」など。日付は指定できない（次に来るその時刻に鳴る）。",
+                "端末の時計アプリにアラームを1件設定する。「明日6時に起こして」など。日付は指定できない（次に来るその時刻に鳴る）。"
+                        + "2件以上まとめて設定するときは set_alarms を使うこと。",
                 props(
                         prop("hour", "integer", "時（0-23）"),
                         prop("minute", "integer", "分（0-59）"),
@@ -98,6 +99,23 @@ public class Tools {
                                 .put("description", "繰り返す曜日（任意）。1=日,2=月,3=火,4=水,5=木,6=金,7=土")
                                 .put("items", new JSONObject().put("type", "integer"))}
                 ), "hour", "minute"));
+
+        a.put(tool("set_alarms",
+                "アラームを複数まとめて設定する。2件以上のときは必ずこれを使うこと（set_alarm を続けて呼ぶと、"
+                        + "時計アプリが2件目以降を取りこぼす）。設定後に時計アプリのアラーム一覧を開いて、"
+                        + "実際に入ったか本人が見られるようにする。",
+                props(new Object[]{"alarms", new JSONObject()
+                        .put("type", "array")
+                        .put("description", "設定するアラームの一覧")
+                        .put("items", new JSONObject().put("type", "object")
+                                .put("properties", new JSONObject()
+                                        .put("hour", new JSONObject().put("type", "integer").put("description", "時(0-23)"))
+                                        .put("minute", new JSONObject().put("type", "integer").put("description", "分(0-59)"))
+                                        .put("label", new JSONObject().put("type", "string").put("description", "名前（任意）")))
+                                .put("required", new JSONArray().put("hour")))},
+                        new Object[]{"show_list", new JSONObject().put("type", "boolean")
+                                .put("description", "最後にアラーム一覧を開いて確認させるか（省略時 true）")}
+                ), "alarms"));
 
         a.put(tool("show_alarms",
                 "時計アプリのアラーム一覧を開く。アラームの削除・編集はAndroidに機能が無いので、"
@@ -335,6 +353,8 @@ public class Tools {
                 return "アラームを設定しています…";
             case "set_timer":
                 return "タイマーを準備しています…";
+            case "set_alarms":
+                return "アラームをまとめて設定しています…";
             case "show_alarms":
                 return "アラーム一覧を開いています…";
             case "dismiss_alarm":
@@ -402,6 +422,8 @@ public class Tools {
                     return setAlarm(h, in);
                 case "set_timer":
                     return setTimer(h, in);
+                case "set_alarms":
+                    return setAlarms(h, in);
                 case "show_alarms": {
                     h.launch(new Intent(AlarmClock.ACTION_SHOW_ALARMS)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -566,6 +588,53 @@ public class Tools {
         String t = String.format("%d:%02d", hour, minute);
         return Outcome.ok("時計アプリに " + t + rep + " のアラーム設定を依頼しました。",
                 "⏰ アラーム " + t + rep + (label.isEmpty() ? "" : "「" + label + "」"));
+    }
+
+    /**
+     * 複数のアラームをまとめて設定する。
+     * 時計アプリへの依頼は画面を1つ起こす形なので、続けざまに投げると2件目以降が捨てられる。
+     * 1件ずつ間を空けて投げ、最後に一覧を開いて本人が確認できるようにする。
+     */
+    private static Outcome setAlarms(Host h, JSONObject in) throws Exception {
+        JSONArray list = in.getJSONArray("alarms");
+        if (list.length() == 0) return Outcome.err("設定するアラームがありません");
+        StringBuilder done = new StringBuilder(), failed = new StringBuilder();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject a = list.getJSONObject(i);
+            int hour = a.getInt("hour");
+            int minute = a.optInt("minute", 0);
+            String label = a.optString("label", "");
+            try {
+                Intent x = new Intent(AlarmClock.ACTION_SET_ALARM)
+                        .putExtra(AlarmClock.EXTRA_HOUR, hour)
+                        .putExtra(AlarmClock.EXTRA_MINUTES, minute)
+                        .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (!label.isEmpty()) x.putExtra(AlarmClock.EXTRA_MESSAGE, label);
+                h.launch(x);
+                done.append(String.format(java.util.Locale.JAPAN, "%d:%02d", hour, minute))
+                        .append(label.isEmpty() ? "" : "「" + label + "」").append(" ");
+            } catch (Exception e) {
+                failed.append(String.format(java.util.Locale.JAPAN, "%d:%02d ", hour, minute));
+            }
+            // 時計アプリが1件ずつ処理しきれるように間を空ける
+            try {
+                Thread.sleep(900);
+            } catch (InterruptedException ignored) {
+            }
+        }
+        if (in.optBoolean("show_list", true)) {
+            try {
+                Thread.sleep(400);
+                h.launch(new Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (Exception ignored) {
+            }
+        }
+        String msg = "時計アプリに " + list.length() + " 件の設定を依頼しました: " + done.toString().trim()
+                + (failed.length() == 0 ? "" : "／失敗: " + failed)
+                + "。時計アプリ側が取りこぼすことがあるため、開いた一覧で実際に入っているか確認してもらうこと。"
+                + "足りないものがあれば、その分だけもう一度 set_alarms で設定する。";
+        return Outcome.ok(msg, "⏰ " + list.length() + "件: " + done.toString().trim());
     }
 
     private static Outcome setTimer(Host h, JSONObject in) throws Exception {

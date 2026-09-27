@@ -278,7 +278,7 @@ public class Agent {
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
-                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + memoryLine() + calendarLine(ctx)
+                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + memoryLine() + careLine() + calendarLine(ctx)
                         + Mem.forPrompt(ctx) + Chats.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
                         + Screen.forPrompt())
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
@@ -300,6 +300,14 @@ public class Agent {
         if (!haiku) body.put("output_config", new JSONObject()
                 .put("effort", deep ? Prefs.searchEffort(ctx) : Prefs.effort(ctx)));
         return body;
+    }
+
+    /** 取りこぼしやすい操作の注意 */
+    private static String careLine() {
+        return "\n\n# 端末操作での注意\n"
+                + "- アラームを2件以上頼まれたら set_alarms（複数まとめて）を使う。set_alarm を続けて呼ぶと2件目以降が入らない\n"
+                + "- 実際に入ったかはアプリ側からは確認できない。まとめて設定したあとは一覧を開いて、本人に確認してもらう\n"
+                + "- 「できました」と言い切らず、取りこぼしの可能性があるものは一言そえる\n";
     }
 
     /** 覚えるときの書き方 */
