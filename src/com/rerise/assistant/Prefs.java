@@ -139,8 +139,23 @@ public class Prefs {
 
     /** 調べ物のときの深さ（じっくり） */
     public static String searchEffort(Context c) {
-        return sp(c).getString("effort_search", "high");
+        return sp(c).getString("effort_search", "medium");
     }
+
+    /** 検索の使い方: auto（任せる） / always（毎回必ず調べる） / off（調べない） */
+    public static String searchMode(Context c) {
+        return sp(c).getString("search_mode", "auto");
+    }
+
+    public static void setSearchMode(Context c, String v) {
+        sp(c).edit().putString("search_mode", v).apply();
+    }
+
+    public static final String[][] SEARCH_MODES = {
+            {"auto", "おまかせ（必要そうなときだけ調べる）"},
+            {"always", "毎回かならず調べる"},
+            {"off", "調べない（知っていることだけで答える）"},
+    };
 
     public static void setSearchEffort(Context c, String v) {
         sp(c).edit().putString("effort_search", v).apply();

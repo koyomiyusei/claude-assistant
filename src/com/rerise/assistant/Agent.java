@@ -42,6 +42,7 @@ public class Agent {
     private volatile boolean running;
     private volatile String lastUserText = "";
     private volatile boolean usedSearch;
+    private volatile boolean forceSearch;   // 🔎ボタンで「必ず調べる」を指定されたとき
 
     public Agent(Tools.Host host, Ui ui) {
         this.host = host;
@@ -59,6 +60,10 @@ public class Agent {
 
     public void send(final String userText) {
         send(userText, null, null);
+    }
+
+    public void setForceSearch(boolean v) {
+        forceSearch = v;
     }
 
     /** 画像を添えて送る（base64・media typeは image/jpeg） */
@@ -132,7 +137,7 @@ public class Agent {
             JSONObject body = buildRequest(ctx, conv, deep);
             status("考えています…");
 
-            ClaudeClient.Result r = client.send(key, Prefs.workspaceId(ctx), body, new ClaudeClient.Listener() {
+            ClaudeClient.Listener listener = new ClaudeClient.Listener() {
                 public void onText(String delta) {
                     shown.append(delta);
                     final String t = shown.toString();
@@ -147,7 +152,20 @@ public class Agent {
                 public void onStatus(String s) {
                     status(s);
                 }
-            });
+            };
+            ClaudeClient.Result r;
+            try {
+                r = client.send(key, Prefs.workspaceId(ctx), body, listener);
+            } catch (ClaudeClient.ApiException e) {
+                // tool_choice が使えない組み合わせのときは外してやり直す
+                if (e.code == 400 && body.has("tool_choice") && String.valueOf(e.getMessage()).contains("tool_choice")) {
+                    body.remove("tool_choice");
+                    client = new ClaudeClient();
+                    r = client.send(key, Prefs.workspaceId(ctx), body, listener);
+                } else {
+                    throw e;
+                }
+            }
             if (client.isCancelled()) {
                 if (shown.length() == 0) conv.addDisplay("error", "中断しました");
                 // 中断した往復は API 側の整合性が取れないので、ユーザー発言ごと消す
@@ -237,6 +255,19 @@ public class Agent {
         throw new ClaudeClient.ApiException(0, "やり取りが長くなりすぎたので止めました");
     }
 
+    /** 今の言葉なら検索すべきか。人名・店・価格・制度など「外の事実」を聞かれたら調べる */
+    static boolean needsSearch(String t) {
+        if (t == null || t.isEmpty()) return false;
+        if (looksLikeResearch(t)) return true;
+        String[] keys = {"とは", "って何", "ってどんな", "誰", "いつ", "どこ", "何時", "営業", "定休",
+                "値段", "料金", "金額", "在庫", "発売", "新型", "型番", "スペック", "仕様", "条件",
+                "制度", "法律", "規則", "手続き", "必要書類", "資格", "会社", "社長", "代表", "株価",
+                "ランキング", "人気", "評判", "口コミ", "今日の", "今週", "予報"};
+        for (String k : keys) if (t.contains(k)) return true;
+        // 「〜は？」「〜ですか？」のような、事実を尋ねる形
+        return t.endsWith("？") || t.endsWith("?");
+    }
+
     /** 調べ物っぽい頼みかどうか。深く考えるかの入口の判断 */
     static boolean looksLikeResearch(String t) {
         if (t == null) return false;
@@ -275,20 +306,24 @@ public class Agent {
     private JSONObject buildRequest(Context ctx, Conversation conv, boolean deep) throws Exception {
         String model = Prefs.model(ctx);
         boolean haiku = model.contains("haiku");
+        String mode = Prefs.searchMode(ctx);
+        boolean searchOn = Prefs.webSearch(ctx) && !"off".equals(mode);
+        boolean must = searchOn && (forceSearch || "always".equals(mode) || needsSearch(lastUserText));
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
                 .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + memoryLine() + careLine() + calendarLine(ctx)
                         + Mem.forPrompt(ctx) + Chats.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
+                        + (searchOn ? searchPolicy(must) : "")
                         + Screen.forPrompt())
                 .put("messages", conv.forApi(Prefs.historyTurns(ctx)));
 
         JSONArray tools = Tools.definitions(ctx);
-        if (Prefs.webSearch(ctx)) {
+        if (searchOn) {
             tools.put(new JSONObject()
                     .put("type", haiku ? "web_search_20250305" : "web_search_20260318")
                     .put("name", "web_search")
-                    .put("max_uses", deep ? 8 : 4)
+                    .put("max_uses", must ? 6 : 3)
                     .put("user_location", new JSONObject()
                             .put("type", "approximate")
                             .put("city", "Okayama")
@@ -297,9 +332,31 @@ public class Agent {
                             .put("timezone", "Asia/Tokyo")));
         }
         body.put("tools", tools);
+        if (must && !usedSearch) {
+            // 記憶だけで即答して間違えるのを防ぐ。最初の一手を検索に固定する
+            try {
+                body.put("tool_choice", new JSONObject().put("type", "tool").put("name", "web_search"));
+            } catch (Exception ignored) {
+            }
+        }
         if (!haiku) body.put("output_config", new JSONObject()
                 .put("effort", deep ? Prefs.searchEffort(ctx) : Prefs.effort(ctx)));
         return body;
+    }
+
+    /** 検索するかどうかの構え。速さと正確さの折り合い */
+    private static String searchPolicy(boolean must) {
+        if (must) {
+            return "\n\n# この質問への構え\n"
+                    + "外の事実（人・店・会社・価格・制度・日付・最新情報）が絡む。記憶だけで答えない。必ず web_search で裏を取る。\n"
+                    + "- 検索は2〜3回で切り上げる。完璧を待たず、分かった範囲で答える\n"
+                    + "- 調べても確証が無い部分は「ここは確認できなかった」と書く。推測を事実のように書かない\n"
+                    + "- 出典は本文にリンクで置く\n";
+        }
+        return "\n\n# この質問への構え\n"
+                + "軽い質問なので、知っていることで答えてよい。ただし人名・店・価格・制度・日付など"
+                + "外の事実で少しでも自信が無いものは、答える前に web_search で確かめる。"
+                + "うろ覚えのまま言い切らない。確かめずに答えるときは、断定しない書き方にする。\n";
     }
 
     /** 取りこぼしやすい操作の注意 */

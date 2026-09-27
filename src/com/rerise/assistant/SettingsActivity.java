@@ -188,6 +188,10 @@ public class SettingsActivity extends Activity {
         final Switch web = toggle("Web検索を使う（1,000回あたり約1,500円）", Prefs.webSearch(this));
         web.setOnCheckedChangeListener((v, on) -> Prefs.setWebSearch(this, on));
 
+        note("検索の使い方。入力欄の🔎を押すと、その1回だけ必ず調べます");
+        RadioGroup sm = radios(Prefs.SEARCH_MODES, Prefs.searchMode(this));
+        sm.setOnCheckedChangeListener((g, id) -> Prefs.setSearchMode(this, Prefs.SEARCH_MODES[id - 1][0]));
+
         note("APIに送る直近の往復数（多いほど前の話を覚えているが、料金も増える）");
         final EditText turns = field("20", false);
         turns.setInputType(InputType.TYPE_CLASS_NUMBER);

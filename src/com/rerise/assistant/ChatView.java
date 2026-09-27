@@ -36,6 +36,8 @@ public class ChatView extends LinearLayout implements Agent.Ui {
     private final Speech speech;
     private final Talk talk;
     private final TextView speaker;
+    private final TextView searchBtn;
+    private boolean forceSearch;
     private boolean continuous;          // 連続会話モード（読み上げ→自動でまた聞く）
     private String pendingImage;         // 添える画像（base64）
     private String pendingImageType;
@@ -84,6 +86,11 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         input.setImeOptions(EditorInfo.IME_ACTION_SEND);
         row.addView(input, new LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
+        searchBtn = ui.iconButton(c, "🔎", ui.userBubble, ui.text, 44);
+        LayoutParams qp = new LayoutParams(ui.dp(44), ui.dp(44));
+        qp.leftMargin = ui.dp(8);
+        row.addView(searchBtn, qp);
+
         speaker = ui.iconButton(c, "🔊", ui.userBubble, ui.text, 44);
         LayoutParams kp = new LayoutParams(ui.dp(44), ui.dp(44));
         kp.leftMargin = ui.dp(8);
@@ -109,6 +116,13 @@ public class ChatView extends LinearLayout implements Agent.Ui {
             }
         });
         mic.setOnClickListener(v -> toggleVoice());
+        searchBtn.setOnClickListener(v -> {
+            forceSearch = !forceSearch;
+            searchBtn.setBackground(ui.round(forceSearch ? ui.accent : ui.userBubble, 22));
+            searchBtn.setTextColor(forceSearch ? ui.onAccent : ui.text);
+            Toast.makeText(ctx, forceSearch ? "次の質問は必ずWebで調べます"
+                    : "調べるかどうかはおまかせに戻しました", Toast.LENGTH_SHORT).show();
+        });
         speaker.setOnClickListener(v -> {
             continuous = !continuous;
             speaker.setBackground(ui.round(continuous ? ui.accent : ui.userBubble, 22));
@@ -228,7 +242,13 @@ public class ChatView extends LinearLayout implements Agent.Ui {
         addBubble("user", (pendingImage == null ? "" : "🖼 ") + t);
         streaming = null;
         send.setText("■");
+        agent.setForceSearch(forceSearch);
         agent.send(t, pendingImage, pendingImageType);
+        if (forceSearch) {
+            forceSearch = false;
+            searchBtn.setBackground(ui.round(ui.userBubble, 22));
+            searchBtn.setTextColor(ui.text);
+        }
         pendingImage = null;
         pendingImageType = null;
         input.setHint("話しかける / 入力");

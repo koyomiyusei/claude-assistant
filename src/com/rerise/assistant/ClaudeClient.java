@@ -183,7 +183,13 @@ public class ClaudeClient {
                     if (i >= blocks.length || blocks[i] == null) break;
                     if (partialJson[i] != null) {
                         String s = partialJson[i].toString().trim();
-                        blocks[i].put("input", s.isEmpty() ? new JSONObject() : new JSONObject(s));
+                        JSONObject input = s.isEmpty() ? new JSONObject() : new JSONObject(s);
+                        blocks[i].put("input", input);
+                        // 何を検索しているのかを見せる（待ち時間の見通しをよくする）
+                        if ("server_tool_use".equals(blocks[i].optString("type"))) {
+                            String q = input.optString("query", "");
+                            if (!q.isEmpty()) l.onStatus("「" + q + "」を検索中…");
+                        }
                     }
                     break;
                 }

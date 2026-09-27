@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "1.5",
+  "versionCode": 16,
+  "versionName": "1.6",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "検索したあとの会話が「リクエストの形が不正です(400)」で止まる不具合を修正。壊れた履歴も送信前に自動で直します"
+  "notes": "検索の判断を改善：人名・店・価格・制度など外の事実は必ず裏を取り、軽い質問は即答。🔎ボタンでその1回だけ必ず調べる。検索中は何を検索しているか表示。調べ物の深さは既定を『バランス』に（速さと正確さの折り合い）"
 }
