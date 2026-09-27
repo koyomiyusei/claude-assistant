@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "1.6",
+  "versionCode": 17,
+  "versionName": "1.7",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "検索の判断を改善：人名・店・価格・制度など外の事実は必ず裏を取り、軽い質問は即答。🔎ボタンでその1回だけ必ず調べる。検索中は何を検索しているか表示。調べ物の深さは既定を『バランス』に（速さと正確さの折り合い）"
+  "notes": "言い直し・指示語を前の会話から読み取るように（「夜の8時にして」で直前の予定を変更）。処理中でも補足を送れるようになり、その内容込みで答え直します"
 }

@@ -43,6 +43,7 @@ public class Agent {
     private volatile String lastUserText = "";
     private volatile boolean usedSearch;
     private volatile boolean forceSearch;   // 🔎ボタンで「必ず調べる」を指定されたとき
+    private volatile String followUp;       // 走っている最中に足された補足
 
     public Agent(Tools.Host host, Ui ui) {
         this.host = host;
@@ -64,6 +65,16 @@ public class Agent {
 
     public void setForceSearch(boolean v) {
         forceSearch = v;
+    }
+
+    /** 処理中に送られた補足。いまの往復を中断し、補足を足してやり直す */
+    public boolean addFollowUp(String text) {
+        if (!running || text == null || text.trim().isEmpty()) return false;
+        followUp = text.trim();
+        Conversation conv = Conversation.get(host.context().getApplicationContext());
+        conv.addDisplay("user", text.trim());
+        cancel();
+        return true;
     }
 
     /** 画像を添えて送る（base64・media typeは image/jpeg） */
@@ -167,6 +178,16 @@ public class Agent {
                 }
             }
             if (client.isCancelled()) {
+                String add = followUp;
+                followUp = null;
+                if (add != null) {
+                    // 直前の自分の発言に補足を足して、同じ往復をやり直す
+                    appendToLastUser(conv, add);
+                    lastUserText = lastUserText + "\n" + add;
+                    shown.setLength(0);
+                    status("補足を足して考え直しています…");
+                    continue;
+                }
                 if (shown.length() == 0) conv.addDisplay("error", "中断しました");
                 // 中断した往復は API 側の整合性が取れないので、ユーザー発言ごと消す
                 dropUnfinishedTurn(conv);
@@ -312,7 +333,8 @@ public class Agent {
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("max_tokens", 8000)
-                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + memoryLine() + careLine() + calendarLine(ctx)
+                .put("system", Prefs.systemPrompt(ctx) + "\n\n" + nowLine() + contextLine() + memoryLine() + careLine() + calendarLine(ctx)
+                        + recentActions(conv)
                         + Mem.forPrompt(ctx) + Chats.forPrompt(ctx) + Profiles.matched(ctx, lastUserText, deep)
                         + (searchOn ? searchPolicy(must) : "")
                         + Screen.forPrompt())
@@ -357,6 +379,36 @@ public class Agent {
                 + "軽い質問なので、知っていることで答えてよい。ただし人名・店・価格・制度・日付など"
                 + "外の事実で少しでも自信が無いものは、答える前に web_search で確かめる。"
                 + "うろ覚えのまま言い切らない。確かめずに答えるときは、断定しない書き方にする。\n";
+    }
+
+    /** 直近にやった端末操作（カード）を渡す。「さっきの予定」を指せるようにするため */
+    private static String recentActions(Conversation conv) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            int n = 0;
+            for (int i = conv.display.length() - 1; i >= 0 && n < 6; i--) {
+                JSONObject o = conv.display.optJSONObject(i);
+                if (o == null || !"card".equals(o.optString("kind"))) continue;
+                sb.insert(0, "- " + o.optString("text") + "\n");
+                n++;
+            }
+            if (n == 0) return "";
+            return "\n\n# 直近にやったこと（新しいものが下）\n" + sb;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** 文脈の扱い */
+    private static String contextLine() {
+        return "\n\n# 会話のつながり\n"
+                + "- 直前までのやり取りを必ず踏まえる。ひとつ前の話題が続いていると考えるのが基本\n"
+                + "- 「さっきの」「あれ」「それ」「やっぱり」「じゃなくて」は、直前に出てきたものを指す。"
+                + "何のことか聞き返す前に、直近の自分の発言と「直近にやったこと」を見る\n"
+                + "- 言い直し（例:「明日8時に焼肉」→「夜の8時にして」）は、新しい話ではなく前の指示の訂正として扱う。"
+                + "作ったばかりの予定があるなら、それを直す（作り直しではなく変更）\n"
+                + "- 本当に手がかりが無いときだけ、短く1つだけ聞き返す\n"
+                + "- 送信のあとに「（補足）」が付いた文が足されることがある。これは同じ依頼への追加情報なので、まとめて1つの依頼として扱う\n";
     }
 
     /** 取りこぼしやすい操作の注意 */
@@ -404,6 +456,32 @@ public class Agent {
     private static String lastRole(Conversation conv) {
         int n = conv.messages.length();
         return n == 0 ? "" : conv.messages.optJSONObject(n - 1).optString("role");
+    }
+
+    /** 走っている最中の補足を、直前のユーザー発言に足す */
+    private static void appendToLastUser(Conversation conv, String add) {
+        try {
+            for (int i = conv.messages.length() - 1; i >= 0; i--) {
+                JSONObject m = conv.messages.getJSONObject(i);
+                if (!"user".equals(m.optString("role"))) continue;
+                Object c = m.opt("content");
+                if (c instanceof String) {
+                    m.put("content", c + "\n（補足）" + add);
+                    return;
+                }
+                if (c instanceof JSONArray) {
+                    JSONArray a = (JSONArray) c;
+                    boolean isToolResult = false;
+                    for (int k = 0; k < a.length(); k++) {
+                        if ("tool_result".equals(a.getJSONObject(k).optString("type"))) isToolResult = true;
+                    }
+                    if (isToolResult) continue;   // ツール結果の箱には足さない
+                    a.put(new JSONObject().put("type", "text").put("text", "（補足）" + add));
+                    return;
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     /** 最後のユーザー発言（ツール結果ではない方）以降を消す */

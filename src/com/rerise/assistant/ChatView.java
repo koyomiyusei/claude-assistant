@@ -235,7 +235,17 @@ public class ChatView extends LinearLayout implements Agent.Ui {
 
     private void submit() {
         String t = input.getText().toString().trim();
-        if (t.isEmpty() || agent.isRunning()) return;
+        if (t.isEmpty()) return;
+        if (agent.isRunning()) {
+            // 走っている最中の送信は「補足」として足し、同じ依頼をやり直す
+            if (agent.addFollowUp(t)) {
+                input.setText("");
+                addBubble("user", t);
+                onStatus("補足を足して考え直しています…");
+                scrollToEnd();
+            }
+            return;
+        }
         speech.stop();
         input.setText("");
         if (Conversation.get(ctx).display.length() == 0) list.removeAllViews();
