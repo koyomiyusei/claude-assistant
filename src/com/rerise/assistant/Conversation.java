@@ -168,7 +168,7 @@ public class Conversation {
         return false;
     }
 
-    /** API に送る分。直近 turns 往復だけに絞る */
+    /** API に送る分。直近 turns 往復だけに絞り、送れない形のブロックを落とす */
     public synchronized JSONArray forApi(int turns) throws Exception {
         int start = 0, count = 0;
         for (int i = messages.length() - 1; i >= 0; i--) {
@@ -179,8 +179,45 @@ public class Conversation {
             }
         }
         JSONArray out = new JSONArray();
-        for (int i = start; i < messages.length(); i++) out.put(messages.get(i));
+        for (int i = start; i < messages.length(); i++) {
+            JSONObject m = sanitize(messages.getJSONObject(i));
+            if (m != null) out.put(m);
+        }
         return out;
+    }
+
+    /**
+     * 送る前の掃除。
+     * サーバー側ツール（Web検索・コード実行）の結果ブロックは、対になる呼び出しブロックと必ずセットでないと
+     * API が 400 を返す。履歴を軽くする過程で片方だけ残ると壊れるので、送る直前に両方まとめて落とす。
+     * 残すのは assistant なら text と tool_use、user なら text / image / tool_result だけ。
+     */
+    private static JSONObject sanitize(JSONObject m) {
+        try {
+            Object c = m.opt("content");
+            if (c instanceof String) return m;
+            if (!(c instanceof JSONArray)) return m;
+            boolean assistant = "assistant".equals(m.optString("role"));
+            JSONArray in = (JSONArray) c, keep = new JSONArray();
+            for (int i = 0; i < in.length(); i++) {
+                JSONObject b = in.optJSONObject(i);
+                if (b == null) continue;
+                String t = b.optString("type");
+                boolean ok = assistant
+                        ? ("text".equals(t) || "tool_use".equals(t))
+                        : ("text".equals(t) || "image".equals(t) || "tool_result".equals(t));
+                if (!ok) continue;
+                if ("text".equals(t) && b.optString("text").trim().isEmpty()) continue;
+                keep.put(b);
+            }
+            if (keep.length() == 0) {
+                keep.put(new JSONObject().put("type", "text")
+                        .put("text", assistant ? "（このときの内容は省略）" : "（続き）"));
+            }
+            return new JSONObject().put("role", m.optString("role")).put("content", keep);
+        } catch (Exception e) {
+            return m;
+        }
     }
 
     /**
@@ -198,8 +235,9 @@ public class Conversation {
                 for (int k = 0; k < a.length(); k++) {
                     JSONObject b = a.getJSONObject(k);
                     String t = b.optString("type");
-                    if ("server_tool_use".equals(t) || "web_search_tool_result".equals(t)
-                            || "thinking".equals(t) || "redacted_thinking".equals(t)) continue;
+                    // 残すのは本文と、端末側ツールの呼び出しだけ。
+                    // 検索結果・コード実行結果・思考は次の往復では要らないうえ、片方だけ残ると送信が壊れる
+                    if (!"text".equals(t) && !"tool_use".equals(t)) continue;
                     if ("text".equals(t)) {
                         if (b.optString("text").isEmpty()) continue;
                         b = new JSONObject().put("type", "text").put("text", b.optString("text"));

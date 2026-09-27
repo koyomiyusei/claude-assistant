@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "1.4",
+  "versionCode": 15,
+  "versionName": "1.5",
   "apkUrl": "https://raw.githubusercontent.com/koyomiyusei/claude-assistant/main/Assistant.apk",
-  "notes": "複数アラームの取りこぼしを修正（1件ずつ間を空けて設定し、最後に一覧を開いて確認）。アラームの解除・スヌーズ・タイマー停止も追加"
+  "notes": "検索したあとの会話が「リクエストの形が不正です(400)」で止まる不具合を修正。壊れた履歴も送信前に自動で直します"
 }
